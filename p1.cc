@@ -24,6 +24,15 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("Project_01-TCP_Throughput_Measurments");
 
+// Network topology (TCP/IP Protocol)
+//
+// Node:            n0 ------------- n1 ------------ n2 ------------- n3
+// Bandwidth:             5 Mbps           1 Mbps           5 Mbps
+// Delay:                 10 ms            20 ms            10 ms
+//
+// - Flow from n0 to n3 using BulkSendApplication
+// - Receipt of bulk send at n3 using PacketSinkApplication
+
 int
 main (int argc, char *argv[])
 {
