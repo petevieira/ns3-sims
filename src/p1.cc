@@ -20,14 +20,16 @@
 #include "ns3/point-to-point-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/packet-sink-helper.h"
-#include "ns3/bulk-send-application.h"
 #include "ns3/uinteger.h"
+#include "ns3/animation-interface.h"
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("Project_01-TCP_Throughput_Measurments");
 
 // Network topology (TCP/IP Protocol)
+//
+//                                   q1
 //
 // Node:            n0 ------------- n1 ------------ n2 ------------- n3
 // Bandwidth:             5 Mbps           1 Mbps           5 Mbps
@@ -42,27 +44,37 @@ main (int argc, char *argv[])
 {
   Time::SetResolution (Time::NS);
   LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
-  LogComponentEnable ("PacketSinkApplication", LOG_LEVEL_INFO);
-
-  // Set constants
-  uint32_t bulkSenderMaxBytes = 1000000000;
+  LogComponentEnable ("PacketSink", LOG_LEVEL_INFO);
 
   // Set default values for simulation variables
+  std::string tcpType = "TcpTahoe";
   std::string traceName = "tcp-send.tr";
   bool tracing = false;
   uint32_t numNodes   = 4;
   uint32_t winSize    = 2000;
   uint32_t queueLimit = 2000;
   uint32_t segSize    = 128;
+  uint32_t maxBytes   = 1000000000;
 
   // Parse command line arguments
   CommandLine cmd;
+  cmd.AddValue ("tcpType",    "TCP type (use TcpReno or TcpTahoe)",       tcpType);
   cmd.AddValue ("traceName",  "Name of trace file",                      traceName);
   cmd.AddValue ("tracing",    "Flag to enable/disable tracing",          tracing);
   cmd.AddValue ("winSize",    "Receiver advertised window size (bytes)", winSize);
   cmd.AddValue ("queueLimit", "Queue limit on the bottleneck link",      queueLimit);
   cmd.AddValue ("segSize",    "TCP segment size",                        segSize);
+  cmd.AddValue ("maxBytes",   "Max bytes soure will send",               maxBytes);
   cmd.Parse(argc, argv);
+
+  // Set transport protocol based on user input
+  if (tcpType.compare("TcpTahoe") == 0) {
+    Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpTahoe::GetTypeId()));
+  } else if(tcpType.compare("TcpReno") == 0) {
+    Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpReno::GetTypeId()));
+  } else {
+    exit(-1);
+  }
 
   // Create nodes 0 and 1, then add 1 to container for nodes 1 to 2, etc
   // until node 3. So we have three links.
@@ -83,7 +95,8 @@ main (int argc, char *argv[])
   p2pHelpers[1].SetQueue("ns3::DropTailQueue");
   p2pHelpers[1].SetDeviceAttribute  ("DataRate", StringValue ("1Mbps"));
   p2pHelpers[1].SetChannelAttribute ("Delay",    StringValue ("20ms"));
-  p2pHelpers[2] = p2pHelpers[0];
+  p2pHelpers[2].SetDeviceAttribute  ("DataRate", StringValue ("5Mbps"));
+  p2pHelpers[2].SetChannelAttribute ("Delay",    StringValue ("10ms"));
 
   // Install devices and channels with point-to-point helpers
   NS_LOG_INFO ("Installing network devices");
@@ -107,35 +120,49 @@ main (int argc, char *argv[])
   // Hardware is in place. Now assign IP addresses
   NS_LOG_INFO ("Assign IP Addresses.");
   Ipv4AddressHelper ipv4;
-  // for(uint32_t i=0; i<nodes
-  // address.SetBase ("10.1.1.0", "255.255.255.0");
-  // Ipv4InterfaceContainer i = ipv4.Assign (
+  std::vector<Ipv4InterfaceContainer> interfaceLinks (numNodes - 1);
+  for(uint32_t i=0; i<interfaceLinks.size (); ++i)
+    {
+      std::ostringstream subnet;
+      subnet << "10.1." << i+1 << ".0";
+      ipv4.SetBase (subnet.str ().c_str (), "255.255.255.0");
+      interfaceLinks[i] = ipv4.Assign (devices[i]);
+    }
 
   uint32_t port = 9;
   // Create BulkSendApplication source and install node 0 on it
-//  BulkSendApplication source ("ns3::TcpSocketFactory", InetSocketAddress (Ipv4Address.GetAny (), port));
+  //  BulkSendApplication source ("ns3::TcpL4Protocol", InetSocketAddress (Ipv4Address.GetAny (), port));
+  BulkSendHelper source ("ns3::TcpSocketFactory", 
+                         InetSocketAddress (Ipv4Address::GetAny (), port));
+  source.SetAttribute ("MaxBytes", UintegerValue (maxBytes));
+  ApplicationContainer sourceApps = source.Install (nodeLinks[0].Get (0));
+  sourceApps.Start (Seconds (0.0));
+  sourceApps.Stop  (Seconds (10.0));
 //  source.SetMaxBytes (UintergerValue (bulkSenderMaxBytes));
 //  source.SetNode (nodeLinks[0].Get (0));
 //  source.SetStartTime (Seconds (0.0));
 //  source.SetStopTime  (Seconds (10.0));
 
 //  // PacketSinkApplication sink and install right-most node on it
-//  PacketSinkHeper sink ("ns3::TcpSocketFactory",
-//                         InetSocketAddress (Ipv4Address::GetAny (), port));
+  PacketSinkHelper sink ("ns3::TcpSocketFactory",
+                         InetSocketAddress (Ipv4Address::GetAny (), port));
+  ApplicationContainer sinkApps = sink.Install (nodeLinks.back().Get (1));
+  sinkApps.Start (Seconds (0.0));
+  sinkApps.Stop  (Seconds (10.0));
 //  sink.Install (nodeLinks[nodeLinks.size () - 1].Get (1));
 //  sink.Start (Seconds (0.0));
 //  sink.Stop  (Seconds (10.0));
 
 //  // Set up tracing
 //  if (tracing)
-//    {
-//      AsciiTraceHelper ascii;
-//      p2pHelpers.EnableAsciiAll (ascii.CreateFileStream (traceName));
-//      p2pHelpers.EnablePcapAll ("p1", false);
-//    }
+    // {
+    //   AsciiTraceHelper ascii;
+    //   p2pHelpers.EnableAsciiAll (ascii.CreateFileStream (traceName));
+    //   p2pHelpers.EnablePcapAll ("p1", false);
+    // }
 
   // Animation setup
-//  AnimationInterface animInterface("p1.anim.xml");
+  AnimationInterface animInterface("p1.anim.xml");
 
   // Run simulation
   NS_LOG_INFO ("Run Simulation...");
@@ -146,8 +173,8 @@ main (int argc, char *argv[])
 
   // Print out Goodput of the network communication from source to sink
   // Goodput: Amount of useful information (bytes) per unit time (seconds)
-//  Ptr<PacketSink> sink1 = DynamicCast<PacketSink> (sinkApp.Get (0));
-//  std::cout << "Total Bytes Received: " << sink1->GetTotalRx () << std::endl;
+  Ptr<PacketSink> sink1 = DynamicCast<PacketSink> (sinkApps.Get (0));
+  std::cout << "Total Bytes Received: " << sink1->GetTotalRx () << std::endl;
 
   return 0;
 }
