@@ -69,9 +69,9 @@ main (int argc, char *argv[])
 
   // Set transport protocol based on user input
   if (tcpType.compare("TcpTahoe") == 0) {
-    Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpTahoe::GetTypeId()));
+      Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpReno"));
   } else if(tcpType.compare("TcpReno") == 0) {
-    Config::SetDefault ("ns3::TcpL4Protocol::SocketType", TypeIdValue (TcpReno::GetTypeId()));
+    Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpTahoe"));
   } else {
     exit(-1);
   }
@@ -84,6 +84,7 @@ main (int argc, char *argv[])
   for(uint32_t i=1; i<nodeLinks.size (); ++i)
     {
       nodeLinks[i].Add (nodeLinks[i-1].Get (1));
+      nodeLinks[i].Create (1);
     }
 
   // Create point-to-point helpers for two link types
@@ -119,6 +120,7 @@ main (int argc, char *argv[])
   
   // Hardware is in place. Now assign IP addresses
   NS_LOG_INFO ("Assign IP Addresses.");
+  std::cerr << "Assigning IP Addresses" << std::endl;
   Ipv4AddressHelper ipv4;
   std::vector<Ipv4InterfaceContainer> interfaceLinks (numNodes - 1);
   for(uint32_t i=0; i<interfaceLinks.size (); ++i)
@@ -132,7 +134,8 @@ main (int argc, char *argv[])
   uint32_t port = 9;
   // Create BulkSendApplication source and install node 0 on it
   //  BulkSendApplication source ("ns3::TcpL4Protocol", InetSocketAddress (Ipv4Address.GetAny (), port));
-  BulkSendHelper source ("ns3::TcpSocketFactory", 
+  std::cerr << "Creating BulkSendApplication" << std::endl;
+  BulkSendHelper source ("ns3::TcpSocketFactory",
                          InetSocketAddress (Ipv4Address::GetAny (), port));
   source.SetAttribute ("MaxBytes", UintegerValue (maxBytes));
   ApplicationContainer sourceApps = source.Install (nodeLinks[0].Get (0));
@@ -144,6 +147,7 @@ main (int argc, char *argv[])
 //  source.SetStopTime  (Seconds (10.0));
 
 //  // PacketSinkApplication sink and install right-most node on it
+  std::cerr << "Creating PacketSinkHelper" << std::endl;
   PacketSinkHelper sink ("ns3::TcpSocketFactory",
                          InetSocketAddress (Ipv4Address::GetAny (), port));
   ApplicationContainer sinkApps = sink.Install (nodeLinks.back().Get (1));
@@ -165,11 +169,13 @@ main (int argc, char *argv[])
   AnimationInterface animInterface("p1.anim.xml");
 
   // Run simulation
+  std::cerr << "Run Simulation... cerr" << std::endl;
   NS_LOG_INFO ("Run Simulation...");
   Simulator::Stop (Seconds (10.0));
   Simulator::Run ();
   Simulator::Destroy ();
   NS_LOG_INFO ("Done!");
+  std::cerr << "Done cerr" << std::endl;
 
   // Print out Goodput of the network communication from source to sink
   // Goodput: Amount of useful information (bytes) per unit time (seconds)
