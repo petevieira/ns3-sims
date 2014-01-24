@@ -22,6 +22,7 @@
 #include "ns3/packet-sink-helper.h"
 #include "ns3/uinteger.h"
 #include "ns3/animation-interface.h"
+#include "ns3/wifi-net-device.h"
 
 using namespace ns3;
 
@@ -52,20 +53,26 @@ main (int argc, char *argv[])
   bool tracing = false;
   uint32_t numNodes   = 4;
   uint32_t winSize    = 2000;
-  uint32_t queueLimit = 2000;
+  uint32_t queueSize  = 2000;
   uint32_t segSize    = 128;
   uint32_t maxBytes   = 1000000000;
 
   // Parse command line arguments
   CommandLine cmd;
-  cmd.AddValue ("tcpType",    "TCP type (use TcpReno or TcpTahoe)",       tcpType);
+  cmd.AddValue ("tcpType",    "TCP type (use TcpReno or TcpTahoe)",      tcpType);
   cmd.AddValue ("traceName",  "Name of trace file",                      traceName);
   cmd.AddValue ("tracing",    "Flag to enable/disable tracing",          tracing);
   cmd.AddValue ("winSize",    "Receiver advertised window size (bytes)", winSize);
-  cmd.AddValue ("queueLimit", "Queue limit on the bottleneck link",      queueLimit);
+  cmd.AddValue ("queueSize",  "Queue limit on the bottleneck link",      queueSize);
   cmd.AddValue ("segSize",    "TCP segment size",                        segSize);
   cmd.AddValue ("maxBytes",   "Max bytes soure will send",               maxBytes);
   cmd.Parse(argc, argv);
+
+  // Set default values
+  Config::SetDefault ("ns3::DropTailQueue::Mode", EnumValue(DropTailQueue::BYTES));
+  Config::SetDefault ("ns3::DropTailQueue::MaxBytes", UintegerValue(queueSize));
+  Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue(winSize));
+  Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue(segSize));
 
   // Set transport protocol based on user input
   if (tcpType.compare("TcpTahoe") == 0) {
@@ -141,10 +148,6 @@ main (int argc, char *argv[])
   ApplicationContainer sourceApps = source.Install (nodeLinks[0].Get (0));
   sourceApps.Start (Seconds (0.0));
   sourceApps.Stop  (Seconds (10.0));
-//  source.SetMaxBytes (UintergerValue (bulkSenderMaxBytes));
-//  source.SetNode (nodeLinks[0].Get (0));
-//  source.SetStartTime (Seconds (0.0));
-//  source.SetStopTime  (Seconds (10.0));
 
 //  // PacketSinkApplication sink and install right-most node on it
   std::cerr << "Creating PacketSinkHelper" << std::endl;
@@ -153,20 +156,9 @@ main (int argc, char *argv[])
   ApplicationContainer sinkApps = sink.Install (nodeLinks.back().Get (1));
   sinkApps.Start (Seconds (0.0));
   sinkApps.Stop  (Seconds (10.0));
-//  sink.Install (nodeLinks[nodeLinks.size () - 1].Get (1));
-//  sink.Start (Seconds (0.0));
-//  sink.Stop  (Seconds (10.0));
-
-//  // Set up tracing
-//  if (tracing)
-    // {
-    //   AsciiTraceHelper ascii;
-    //   p2pHelpers.EnableAsciiAll (ascii.CreateFileStream (traceName));
-    //   p2pHelpers.EnablePcapAll ("p1", false);
-    // }
 
   // Animation setup
-  AnimationInterface animInterface("p1.anim.xml");
+  // AnimationInterface animInterface("p1.anim.xml");
 
   // Run simulation
   std::cerr << "Run Simulation... cerr" << std::endl;

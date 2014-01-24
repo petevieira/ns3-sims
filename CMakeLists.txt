@@ -22,7 +22,7 @@ FIND_PACKAGE(NS3 COMPONENTS
        	   	   ns3-test					  ns3-tools
      		   ns3-topology-read		  ns3-uan
 			   ns3-virtual-net-device	  ns3-visualizer
-       	   	   ns3-wimax
+       	   	   ns3-wimax                  ns3-wifi
               REQUIRED)
 include_directories(${NS3_INCLUDE_DIRS})
 link_directories(${NS3_LIBRARY_DIRS})
@@ -47,7 +47,8 @@ link_libraries(ns3-aodv                   ns3-applications
         	   ns3-test					  ns3-tools
       		   ns3-topology-read		  ns3-uan
  			   ns3-virtual-net-device	  ns3-visualizer
-        	   ns3-wimax)
+        	   ns3-wimax                  ns3-wifi
+               )
 
 file(GLOB simulations "src/*.cc")
 list(SORT simulations)
