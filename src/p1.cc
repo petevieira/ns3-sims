@@ -23,6 +23,7 @@
 #include "ns3/uinteger.h"
 #include "ns3/animation-interface.h"
 #include "ns3/wifi-net-device.h"
+#include "ns3/point-to-point-dumbbell.h"
 
 using namespace ns3;
 
@@ -46,21 +47,20 @@ main (int argc, char *argv[])
   Time::SetResolution (Time::NS);
   LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
   LogComponentEnable ("PacketSink", LOG_LEVEL_INFO);
-
+ 
   // Set default values for simulation variables
   std::string tcpType = "TcpTahoe";
-  std::string traceName = "tcp-send.tr";
   bool tracing = false;
-  uint32_t numNodes   = 4;
+  uint32_t numLtNodes = 1;
+  uint32_t numRtNodes = 1;
   uint32_t winSize    = 2000;
   uint32_t queueSize  = 2000;
-  uint32_t segSize    = 128;
-  uint32_t maxBytes   = 1000000000;
+  uint32_t segSize    = 512;
+  uint32_t maxBytes   = 1000000;
 
   // Parse command line arguments
   CommandLine cmd;
   cmd.AddValue ("tcpType",    "TCP type (use TcpReno or TcpTahoe)",      tcpType);
-  cmd.AddValue ("traceName",  "Name of trace file",                      traceName);
   cmd.AddValue ("tracing",    "Flag to enable/disable tracing",          tracing);
   cmd.AddValue ("winSize",    "Receiver advertised window size (bytes)", winSize);
   cmd.AddValue ("queueSize",  "Queue limit on the bottleneck link",      queueSize);
@@ -69,51 +69,28 @@ main (int argc, char *argv[])
   cmd.Parse(argc, argv);
 
   // Set default values
-  Config::SetDefault ("ns3::DropTailQueue::Mode", EnumValue(DropTailQueue::BYTES));
-  Config::SetDefault ("ns3::DropTailQueue::MaxBytes", UintegerValue(queueSize));
-  Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue(winSize));
-  Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue(segSize));
+  // Config::SetDefault ("ns3::DropTailQueue::Mode", EnumValue(DropTailQueue::BYTES));
+  // Config::SetDefault ("ns3::DropTailQueue::MaxBytes", UintegerValue(queueSize));
+  // Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue(winSize));
+  // Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue(segSize));
 
   // Set transport protocol based on user input
-  if (tcpType.compare("TcpTahoe") == 0) {
-      Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpReno"));
-  } else if(tcpType.compare("TcpReno") == 0) {
-    Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpTahoe"));
-  } else {
-    exit(-1);
-  }
+  // if (tcpType.compare("TcpTahoe") == 0) {
+  //     Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpReno"));
+  // } else if(tcpType.compare("TcpReno") == 0) {
+  //   Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpTahoe"));
+  // } else {
+  //   exit(-1);
+  // }
 
-  // Create nodes 0 and 1, then add 1 to container for nodes 1 to 2, etc
-  // until node 3. So we have three links.
-  NS_LOG_INFO ("Creating nodes.");
-  std::vector<NodeContainer> nodeLinks (numNodes-1);
-  nodeLinks[0].Create (2);
-  for(uint32_t i=1; i<nodeLinks.size (); ++i)
-    {
-      nodeLinks[i].Add (nodeLinks[i-1].Get (1));
-      nodeLinks[i].Create (1);
-    }
-
-  // Create point-to-point helpers for two link types
-  // Put DropTailQueue on output node (first node) of link 2
-  NS_LOG_INFO ("Creating channels.");
-  std::vector<PointToPointHelper> p2pHelpers (numNodes-1);
-  p2pHelpers[0].SetDeviceAttribute  ("DataRate", StringValue ("5Mbps"));
-  p2pHelpers[0].SetChannelAttribute ("Delay",    StringValue ("10ms"));
-  p2pHelpers[1].SetQueue("ns3::DropTailQueue");
-  p2pHelpers[1].SetDeviceAttribute  ("DataRate", StringValue ("1Mbps"));
-  p2pHelpers[1].SetChannelAttribute ("Delay",    StringValue ("20ms"));
-  p2pHelpers[2].SetDeviceAttribute  ("DataRate", StringValue ("5Mbps"));
-  p2pHelpers[2].SetChannelAttribute ("Delay",    StringValue ("10ms"));
-
-  // Install devices and channels with point-to-point helpers
-  NS_LOG_INFO ("Installing network devices");
-  std::vector<NetDeviceContainer> devices (numNodes-1);
-  for(uint32_t i=0; i<devices.size (); ++i)
-    {
-      devices[i] = p2pHelpers[i].Install (nodeLinks[i]);
-    }
-
+  // Let's use the dumbbell helper
+  std::cerr << "Create Dumbbell Helper" << std::endl;
+  PointToPointHelper p2pLeaf, p2pRouters;
+  p2pLeaf.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
+  p2pLeaf.SetChannelAttribute ("Delay", StringValue ("10ms"));
+  p2pRouters.SetDeviceAttribute ("DataRate", StringValue ("1Mbps"));
+  p2pRouters.SetChannelAttribute ("Delay", StringValue ("20ms"));
+  PointToPointDumbbellHelper dumbbell (numLtNodes, p2pLeaf, numRtNodes, p2pLeaf, p2pLeaf);
 
   // Add TCP/IP stack to all nodes (Transmission Control Protocol / Internet Protocol)
   // Application (data): Encodes the data being sent.
@@ -122,40 +99,42 @@ main (int argc, char *argv[])
   // Link (frame)      : Adds MAC address info to tell which HW device the message
   //                     is from and which HW device it is going to.
   NS_LOG_INFO ("Intalling TCP/IP stack to all nodes");
-  InternetStackHelper stack;
-  stack.InstallAll ();
+  dumbbell.InstallStack (InternetStackHelper());
   
   // Hardware is in place. Now assign IP addresses
   NS_LOG_INFO ("Assign IP Addresses.");
   std::cerr << "Assigning IP Addresses" << std::endl;
-  Ipv4AddressHelper ipv4;
-  std::vector<Ipv4InterfaceContainer> interfaceLinks (numNodes - 1);
-  for(uint32_t i=0; i<interfaceLinks.size (); ++i)
-    {
-      std::ostringstream subnet;
-      subnet << "10.1." << i+1 << ".0";
-      ipv4.SetBase (subnet.str ().c_str (), "255.255.255.0");
-      interfaceLinks[i] = ipv4.Assign (devices[i]);
-    }
+  Ipv4AddressHelper ltIps = Ipv4AddressHelper ("10.0.1.0", "255.255.255.0");
+  Ipv4AddressHelper rtIps = Ipv4AddressHelper ("10.1.1.0", "255.255.255.0");
+  Ipv4AddressHelper routerIps = Ipv4AddressHelper ("10.2.1.0", "255.255.255.0");
+  dumbbell.AssignIpv4Addresses(ltIps, rtIps, routerIps);
 
-  uint32_t port = 9;
+  std::cerr << "ip addresses:\n";
+  std::cerr << dumbbell.GetLeftIpv4Address(0) << "\n"
+            << dumbbell.GetRightIpv4Address(0) << "\n"
+            << std::endl;
+
+  uint16_t port = 9;
+
   // Create BulkSendApplication source and install node 0 on it
-  //  BulkSendApplication source ("ns3::TcpL4Protocol", InetSocketAddress (Ipv4Address.GetAny (), port));
+  // BulkSendApplication source ("ns3::TcpL4Protocol", InetSocketAddress (Ipv4Address.GetAny (), port));
   std::cerr << "Creating BulkSendApplication" << std::endl;
   BulkSendHelper source ("ns3::TcpSocketFactory",
-                         InetSocketAddress (Ipv4Address::GetAny (), port));
+                         InetSocketAddress (dumbbell.GetLeftIpv4Address (0), port));
   source.SetAttribute ("MaxBytes", UintegerValue (maxBytes));
-  ApplicationContainer sourceApps = source.Install (nodeLinks[0].Get (0));
+  ApplicationContainer sourceApps = source.Install (dumbbell.GetLeft ());
   sourceApps.Start (Seconds (0.0));
   sourceApps.Stop  (Seconds (10.0));
 
-//  // PacketSinkApplication sink and install right-most node on it
+  // PacketSinkApplication sink and install right-most node on it
   std::cerr << "Creating PacketSinkHelper" << std::endl;
   PacketSinkHelper sink ("ns3::TcpSocketFactory",
                          InetSocketAddress (Ipv4Address::GetAny (), port));
-  ApplicationContainer sinkApps = sink.Install (nodeLinks.back().Get (1));
+  ApplicationContainer sinkApps = sink.Install (dumbbell.GetRight ());
   sinkApps.Start (Seconds (0.0));
   sinkApps.Stop  (Seconds (10.0));
+
+  //  Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
   // Animation setup
   // AnimationInterface animInterface("p1.anim.xml");

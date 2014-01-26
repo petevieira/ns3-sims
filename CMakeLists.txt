@@ -50,13 +50,13 @@ link_libraries(ns3-aodv                   ns3-applications
         	   ns3-wimax                  ns3-wifi
                )
 
-file(GLOB simulations "src/*.cc")
+file(GLOB simulations "src/*.cc" "src/*.cpp")
 list(SORT simulations)
 
 message(STATUS "\n -- SIMULATION: ")
 add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
 foreach(simulation_file ${simulations})
-    get_filename_component(test_base ${simulations} NAME_WE)
+    get_filename_component(test_base ${simulation_file} NAME_WE)
     message(STATUS "Adding test ${test_base}")
     add_executable(${test_base} ${simulation_file})
 #    target_link_libraries(${test_base} ${PROJECT_NAME})
