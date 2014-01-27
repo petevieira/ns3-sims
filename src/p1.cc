@@ -18,12 +18,12 @@
 #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
 #include "ns3/point-to-point-module.h"
+#include "ns3/netanim-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/packet-sink-helper.h"
 #include "ns3/uinteger.h"
-#include "ns3/animation-interface.h"
-#include "ns3/wifi-net-device.h"
 #include "ns3/point-to-point-dumbbell.h"
+#include "ns3/drop-tail-queue.h"
 
 using namespace ns3;
 
@@ -41,12 +41,11 @@ NS_LOG_COMPONENT_DEFINE ("Project_01-TCP_Throughput_Measurments");
 // - Receipt of bulk send at n3 using PacketSinkApplication
 // - Output trace file to p1.tr
 
-int
-main (int argc, char *argv[])
+int main (int argc, char *argv[])
 {
   Time::SetResolution (Time::NS);
-  LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
-  LogComponentEnable ("PacketSink", LOG_LEVEL_INFO);
+  // LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
+  // LogComponentEnable ("PacketSink", LOG_LEVEL_INFO);
  
   // Set default values for simulation variables
   std::string tcpType = "TcpTahoe";
@@ -69,28 +68,30 @@ main (int argc, char *argv[])
   cmd.Parse(argc, argv);
 
   // Set default values
-  // Config::SetDefault ("ns3::DropTailQueue::Mode", EnumValue(DropTailQueue::BYTES));
-  // Config::SetDefault ("ns3::DropTailQueue::MaxBytes", UintegerValue(queueSize));
-  // Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue(winSize));
-  // Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue(segSize));
+  Config::SetDefault ("ns3::DropTailQueue::Mode", EnumValue(DropTailQueue::QUEUE_MODE_BYTES));
+  Config::SetDefault ("ns3::DropTailQueue::MaxBytes", UintegerValue(queueSize));
+  Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue(winSize));
+  Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue(segSize));
 
   // Set transport protocol based on user input
-  // if (tcpType.compare("TcpTahoe") == 0) {
-  //     Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpReno"));
-  // } else if(tcpType.compare("TcpReno") == 0) {
-  //   Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpTahoe"));
-  // } else {
-  //   exit(-1);
-  // }
+  if (tcpType.compare("TcpTahoe") == 0) {
+      Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpReno"));
+  } else if(tcpType.compare("TcpReno") == 0) {
+    Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpTahoe"));
+  } else {
+    exit(-1);
+  }
 
-  // Let's use the dumbbell helper
-  std::cerr << "Create Dumbbell Helper" << std::endl;
+  // Let's use the dumbbell helper to setup left and right nodes with
+  // two routers in the middle
   PointToPointHelper p2pLeaf, p2pRouters;
-  p2pLeaf.SetDeviceAttribute ("DataRate", StringValue ("5Mbps"));
-  p2pLeaf.SetChannelAttribute ("Delay", StringValue ("10ms"));
-  p2pRouters.SetDeviceAttribute ("DataRate", StringValue ("1Mbps"));
-  p2pRouters.SetChannelAttribute ("Delay", StringValue ("20ms"));
-  PointToPointDumbbellHelper dumbbell (numLtNodes, p2pLeaf, numRtNodes, p2pLeaf, p2pLeaf);
+  p2pLeaf.SetDeviceAttribute     ("DataRate", StringValue ("5Mbps"));
+  p2pLeaf.SetChannelAttribute    ("Delay",    StringValue ("10ms"));
+  p2pRouters.SetDeviceAttribute  ("DataRate", StringValue ("1Mbps"));
+  p2pRouters.SetChannelAttribute ("Delay",    StringValue ("20ms"));
+  PointToPointDumbbellHelper dumbbell (numLtNodes, p2pLeaf,
+                                       numRtNodes, p2pLeaf, 
+                                       p2pRouters);
 
   // Add TCP/IP stack to all nodes (Transmission Control Protocol / Internet Protocol)
   // Application (data): Encodes the data being sent.
@@ -99,54 +100,53 @@ main (int argc, char *argv[])
   // Link (frame)      : Adds MAC address info to tell which HW device the message
   //                     is from and which HW device it is going to.
   NS_LOG_INFO ("Intalling TCP/IP stack to all nodes");
-  dumbbell.InstallStack (InternetStackHelper());
+  InternetStackHelper stack;
+  dumbbell.InstallStack (stack);
   
   // Hardware is in place. Now assign IP addresses
   NS_LOG_INFO ("Assign IP Addresses.");
   std::cerr << "Assigning IP Addresses" << std::endl;
-  Ipv4AddressHelper ltIps = Ipv4AddressHelper ("10.0.1.0", "255.255.255.0");
-  Ipv4AddressHelper rtIps = Ipv4AddressHelper ("10.1.1.0", "255.255.255.0");
-  Ipv4AddressHelper routerIps = Ipv4AddressHelper ("10.2.1.0", "255.255.255.0");
+  Ipv4AddressHelper ltIps     = Ipv4AddressHelper ("10.1.1.0", "255.255.255.0");
+  Ipv4AddressHelper rtIps     = Ipv4AddressHelper ("10.2.1.0", "255.255.255.0");
+  Ipv4AddressHelper routerIps = Ipv4AddressHelper ("10.3.1.0", "255.255.255.0");
   dumbbell.AssignIpv4Addresses(ltIps, rtIps, routerIps);
-
-  std::cerr << "ip addresses:\n";
-  std::cerr << dumbbell.GetLeftIpv4Address(0) << "\n"
-            << dumbbell.GetRightIpv4Address(0) << "\n"
-            << std::endl;
 
   uint16_t port = 9;
 
-  // Create BulkSendApplication source and install node 0 on it
-  // BulkSendApplication source ("ns3::TcpL4Protocol", InetSocketAddress (Ipv4Address.GetAny (), port));
+  // Create BulkSendApplication source using a BulkSendHelper, whose constructor
+  // specifies the protocol to use and the address of the remote node to send
+  // traffic to. We'll install it on the left most node
   std::cerr << "Creating BulkSendApplication" << std::endl;
   BulkSendHelper source ("ns3::TcpSocketFactory",
-                         InetSocketAddress (dumbbell.GetLeftIpv4Address (0), port));
+                         InetSocketAddress (dumbbell.GetRightIpv4Address (0), port));
   source.SetAttribute ("MaxBytes", UintegerValue (maxBytes));
-  ApplicationContainer sourceApps = source.Install (dumbbell.GetLeft ());
+  ApplicationContainer sourceApps = source.Install (dumbbell.GetLeft (0));
   sourceApps.Start (Seconds (0.0));
   sourceApps.Stop  (Seconds (10.0));
 
-  // PacketSinkApplication sink and install right-most node on it
+  // Create PacketSinkApplication sink using a PacketSinkHelper, whose constructor
+  // specifies the protocol to use and the address of the sink.
+  // We'll install it on the right-most node.
   std::cerr << "Creating PacketSinkHelper" << std::endl;
   PacketSinkHelper sink ("ns3::TcpSocketFactory",
                          InetSocketAddress (Ipv4Address::GetAny (), port));
-  ApplicationContainer sinkApps = sink.Install (dumbbell.GetRight ());
+  ApplicationContainer sinkApps = sink.Install (dumbbell.GetRight (0));
   sinkApps.Start (Seconds (0.0));
   sinkApps.Stop  (Seconds (10.0));
 
-  //  Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+  // Animation setup and bounding box for animation
+  dumbbell.BoundingBox (1, 1, 100, 100);
+  AnimationInterface animInterface("p1.anim.xml");
 
-  // Animation setup
-  // AnimationInterface animInterface("p1.anim.xml");
+  // Set up the actual simulation
+  Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
   // Run simulation
-  std::cerr << "Run Simulation... cerr" << std::endl;
-  NS_LOG_INFO ("Run Simulation...");
+  NS_LOG_INFO ("Running Simulation...");
   Simulator::Stop (Seconds (10.0));
   Simulator::Run ();
   Simulator::Destroy ();
   NS_LOG_INFO ("Done!");
-  std::cerr << "Done cerr" << std::endl;
 
   // Print out Goodput of the network communication from source to sink
   // Goodput: Amount of useful information (bytes) per unit time (seconds)
