@@ -24,6 +24,7 @@ FIND_PACKAGE(NS3 COMPONENTS
 			   ns3-virtual-net-device	  ns3-visualizer
        	   	   ns3-wimax                  ns3-wifi
               REQUIRED)
+
 include_directories(${NS3_INCLUDE_DIRS})
 link_directories(${NS3_LIBRARY_DIRS})
 add_definitions(${NS3_DEFINITIONS})

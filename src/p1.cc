@@ -36,7 +36,7 @@ NS_LOG_COMPONENT_DEFINE ("Project_01-TCP_Throughput_Measurments");
 // Node:            n0 ------------- n1 ------------ n2 ------------- n3
 // Bandwidth:             5 Mbps           1 Mbps           5 Mbps
 // Delay:                 10 ms            20 ms            10 ms
-//
+// Subnet:               subnet 1         subnet 2         subnet 3
 // - Flow from n0 to n3 using BulkSendApplication
 // - Receipt of bulk send at n3 using PacketSinkApplication
 // - Output trace file to p1.tr
@@ -44,32 +44,34 @@ NS_LOG_COMPONENT_DEFINE ("Project_01-TCP_Throughput_Measurments");
 int main (int argc, char *argv[])
 {
   Time::SetResolution (Time::NS);
-  // LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
-  // LogComponentEnable ("PacketSink", LOG_LEVEL_INFO);
+  LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
+  LogComponentEnable ("PacketSink", LOG_LEVEL_INFO);
  
   // Set default values for simulation variables
+  std::string animFile= "p1-anim.xml";
   std::string tcpType = "TcpTahoe";
   bool tracing = false;
   uint32_t numLtNodes = 1;
   uint32_t numRtNodes = 1;
   uint32_t winSize    = 2000;
-  uint32_t queueSize  = 2000;
+  uint32_t queSize  = 2000;
   uint32_t segSize    = 512;
   uint32_t maxBytes   = 1000000;
 
   // Parse command line arguments
   CommandLine cmd;
+  cmd.AddValue ("animFile",   "Animation file name",                     animFile);
   cmd.AddValue ("tcpType",    "TCP type (use TcpReno or TcpTahoe)",      tcpType);
   cmd.AddValue ("tracing",    "Flag to enable/disable tracing",          tracing);
   cmd.AddValue ("winSize",    "Receiver advertised window size (bytes)", winSize);
-  cmd.AddValue ("queueSize",  "Queue limit on the bottleneck link",      queueSize);
+  cmd.AddValue ("queSize",  "Queue limit on the bottleneck link",        queSize);
   cmd.AddValue ("segSize",    "TCP segment size",                        segSize);
   cmd.AddValue ("maxBytes",   "Max bytes soure will send",               maxBytes);
   cmd.Parse(argc, argv);
 
   // Set default values
   Config::SetDefault ("ns3::DropTailQueue::Mode", EnumValue(DropTailQueue::QUEUE_MODE_BYTES));
-  Config::SetDefault ("ns3::DropTailQueue::MaxBytes", UintegerValue(queueSize));
+  Config::SetDefault ("ns3::DropTailQueue::MaxBytes", UintegerValue(queSize));
   Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue(winSize));
   Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue(segSize));
 
@@ -136,9 +138,13 @@ int main (int argc, char *argv[])
 
   // Animation setup and bounding box for animation
   dumbbell.BoundingBox (1, 1, 100, 100);
-  AnimationInterface animInterface("p1.anim.xml");
+  AnimationInterface animInterface(animFile);
+  animInterface.EnablePacketMetadata(true);
+  std::cerr << "Saving animation file: " << animFile << std::endl;
 
-  // Set up the actual simulation
+  // Uses shortest path search from every node to every possible destination
+  // to tell nodes how to route packets. A routing table is the next top route
+  // to the possible routing destinations.
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
   // Run simulation
@@ -152,6 +158,6 @@ int main (int argc, char *argv[])
   // Goodput: Amount of useful information (bytes) per unit time (seconds)
   Ptr<PacketSink> sink1 = DynamicCast<PacketSink> (sinkApps.Get (0));
   std::cout << "Total Bytes Received: " << sink1->GetTotalRx () << std::endl;
-
+  std::cout << "Goodput = " << sink1->GetTotalRx () / 10.0 << " Bytes/seconds" << std::endl;
   return 0;
 }
