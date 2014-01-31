@@ -14,6 +14,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+// NS3 Includes
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
 #include "ns3/internet-module.h"
@@ -24,6 +25,12 @@
 #include "ns3/uinteger.h"
 #include "ns3/point-to-point-dumbbell.h"
 #include "ns3/drop-tail-queue.h"
+#include "ns3/gnuplot-helper.h"
+#include "ns3/random-variable-stream.h"
+
+// File writing includes
+//#include <iostream>
+//#include <fstream>
 
 using namespace ns3;
 
@@ -37,6 +44,7 @@ NS_LOG_COMPONENT_DEFINE ("Project_01-TCP_Throughput_Measurments");
 // Bandwidth:             5 Mbps           1 Mbps           5 Mbps
 // Delay:                 10 ms            20 ms            10 ms
 // Subnet:               subnet 1         subnet 2         subnet 3
+//
 // - Flow from n0 to n3 using BulkSendApplication
 // - Receipt of bulk send at n3 using PacketSinkApplication
 // - Output trace file to p1.tr
@@ -44,29 +52,33 @@ NS_LOG_COMPONENT_DEFINE ("Project_01-TCP_Throughput_Measurments");
 int main (int argc, char *argv[])
 {
   Time::SetResolution (Time::NS);
-  LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
-  LogComponentEnable ("PacketSink", LOG_LEVEL_INFO);
+//  LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
+//  LogComponentEnable ("PacketSink", LOG_LEVEL_INFO);
  
   // Set default values for simulation variables
+  std::string dataFileName= "p1.data";
   std::string animFile= "p1-anim.xml";
   std::string tcpType = "TcpTahoe";
   bool tracing = false;
   uint32_t numLtNodes = 1;
   uint32_t numRtNodes = 1;
   uint32_t winSize    = 2000;
-  uint32_t queSize  = 2000;
+  uint32_t queSize    = 2000;
   uint32_t segSize    = 512;
-  uint32_t maxBytes   = 1000000;
+  uint32_t maxBytes   = 100000000;
+  uint32_t numBulkSendApps = 1;
 
   // Parse command line arguments
   CommandLine cmd;
+  cmd.AddValue ("dataFileName",   "Data file name",                      dataFileName);
   cmd.AddValue ("animFile",   "Animation file name",                     animFile);
   cmd.AddValue ("tcpType",    "TCP type (use TcpReno or TcpTahoe)",      tcpType);
   cmd.AddValue ("tracing",    "Flag to enable/disable tracing",          tracing);
   cmd.AddValue ("winSize",    "Receiver advertised window size (bytes)", winSize);
-  cmd.AddValue ("queSize",  "Queue limit on the bottleneck link",        queSize);
+  cmd.AddValue ("queSize",    "Queue limit on the bottleneck link",      queSize);
   cmd.AddValue ("segSize",    "TCP segment size",                        segSize);
   cmd.AddValue ("maxBytes",   "Max bytes soure will send",               maxBytes);
+  cmd.AddValue ("numBulkSendApps", "Number of BulkSendApps",             numBulkSendApps);
   cmd.Parse(argc, argv);
 
   // Set default values
@@ -77,10 +89,13 @@ int main (int argc, char *argv[])
 
   // Set transport protocol based on user input
   if (tcpType.compare("TcpTahoe") == 0) {
-      Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpReno"));
-  } else if(tcpType.compare("TcpReno") == 0) {
+    std::cerr << "Setting default protocol to Tcp-Tahoe" << std::endl;
     Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpTahoe"));
+  } else if(tcpType.compare("TcpReno") == 0) {
+    std::cerr << "Setting default protocol to Tcp-Reno" << std::endl;
+    Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpReno"));
   } else {
+    std::cerr << "Invalid protocol: " << tcpType << std::endl;
     exit(-1);
   }
 
@@ -115,32 +130,54 @@ int main (int argc, char *argv[])
 
   uint16_t port = 9;
 
-  // Create BulkSendApplication source using a BulkSendHelper, whose constructor
-  // specifies the protocol to use and the address of the remote node to send
-  // traffic to. We'll install it on the left most node
-  std::cerr << "Creating BulkSendApplication" << std::endl;
-  BulkSendHelper source ("ns3::TcpSocketFactory",
-                         InetSocketAddress (dumbbell.GetRightIpv4Address (0), port));
-  source.SetAttribute ("MaxBytes", UintegerValue (maxBytes));
-  ApplicationContainer sourceApps = source.Install (dumbbell.GetLeft (0));
-  sourceApps.Start (Seconds (0.0));
-  sourceApps.Stop  (Seconds (10.0));
+  ApplicationContainer sourceApps;
+  ApplicationContainer sinkApps;
+  Ptr<UniformRandomVariable> randNum = CreateObject<UniformRandomVariable> ();
 
-  // Create PacketSinkApplication sink using a PacketSinkHelper, whose constructor
-  // specifies the protocol to use and the address of the sink.
-  // We'll install it on the right-most node.
-  std::cerr << "Creating PacketSinkHelper" << std::endl;
-  PacketSinkHelper sink ("ns3::TcpSocketFactory",
-                         InetSocketAddress (Ipv4Address::GetAny (), port));
-  ApplicationContainer sinkApps = sink.Install (dumbbell.GetRight (0));
-  sinkApps.Start (Seconds (0.0));
-  sinkApps.Stop  (Seconds (10.0));
+  std::cerr << "Creating BulkSendApplication" << std::endl;
+  for (uint16_t i=0; i<numBulkSendApps; ++i) {
+    // Create BulkSendApplication source using a BulkSendHelper, whose constructor
+    // specifies the protocol to use and the address of the remote node to send
+    // traffic to. We'll install it on the left most node    
+    BulkSendHelper source ("ns3::TcpSocketFactory",
+                           InetSocketAddress (dumbbell.GetRightIpv4Address (0), port + i));
+    source.SetAttribute ("MaxBytes", UintegerValue (maxBytes));
+    sourceApps.Add (source.Install (dumbbell.GetLeft (0)));
+
+    uint32_t randfloat = (float)(randNum->GetInteger (0, 100)) / 100.0;
+    sourceApps.Start (Seconds (randfloat));
+    sourceApps.Stop  (Seconds (10.0));
+
+    // Create PacketSinkApplication sink using a PacketSinkHelper, whose constructor
+    // specifies the protocol to use and the address of the sink.
+    // We'll install it on the right-most node.
+    std::cerr << "Creating PacketSinkHelper" << std::endl;
+    PacketSinkHelper sink ("ns3::TcpSocketFactory",
+                           InetSocketAddress (Ipv4Address::GetAny (), port + i));
+    sinkApps.Add (sink.Install (dumbbell.GetRight (0)));
+    sinkApps.Start (Seconds (0.0));
+    sinkApps.Stop  (Seconds (10.0));
+  }
+
 
   // Animation setup and bounding box for animation
   dumbbell.BoundingBox (1, 1, 100, 100);
   AnimationInterface animInterface(animFile);
   animInterface.EnablePacketMetadata(true);
   std::cerr << "Saving animation file: " << animFile << std::endl;
+
+  GnuplotHelper plotHelper;
+  plotHelper.ConfigurePlot("plot-test",
+                           "Title",
+                           "xLegend",
+                           "ylegend",
+                           "png");
+
+  plotHelper.PlotProbe("ns3::Ipv4PacketProbe",
+                       "/NodeList/*/$ns3::Ipv4L3Protocol/Tx",
+                       "OutputBytes-p1",
+                       "Packet Byte Count",
+                       GnuplotAggregator::KEY_BELOW);
 
   // Uses shortest path search from every node to every possible destination
   // to tell nodes how to route packets. A routing table is the next top route
@@ -156,8 +193,28 @@ int main (int argc, char *argv[])
 
   // Print out Goodput of the network communication from source to sink
   // Goodput: Amount of useful information (bytes) per unit time (seconds)
-  Ptr<PacketSink> sink1 = DynamicCast<PacketSink> (sinkApps.Get (0));
-  std::cout << "Total Bytes Received: " << sink1->GetTotalRx () << std::endl;
-  std::cout << "Goodput = " << sink1->GetTotalRx () / 10.0 << " Bytes/seconds" << std::endl;
+  std::vector<uint32_t> goodputs;
+  for(ApplicationContainer::Iterator it = sinkApps.Begin(); it != sinkApps.End(); ++it) {
+    Ptr<PacketSink> sink1 = DynamicCast<PacketSink> (*it);
+    uint32_t bytesRcvd = sink1->GetTotalRx ();
+    goodputs.push_back(bytesRcvd / 10.0);
+    std::cout << "Total Bytes Received: " << bytesRcvd << std::endl;
+    std::cout << "Goodput = " << goodputs.back() << " Bytes/seconds" << std::endl;
+  }
+
+  // Write results to data file
+  std::ofstream dataFile;
+  dataFile.open(dataFileName.c_str(), std::fstream::out | std::fstream::app);
+  dataFile << tcpType << "\t"
+           << winSize << "\t"
+           << queSize << "\t"
+           << segSize;
+  for(std::vector<uint32_t>::iterator gp = goodputs.begin(); gp != goodputs.end(); ++gp) {
+    dataFile << "\t" << *gp;
+  }
+  dataFile  << "\n";
+
+  dataFile.close();
+
   return 0;
 }
