@@ -51,9 +51,12 @@ NS_LOG_COMPONENT_DEFINE ("Project_01-TCP_Throughput_Measurments");
 
 int main (int argc, char *argv[])
 {
+  std::cout << "\n----------------------------" << std::endl;
+  std::cout << "    Running Simulation P1   " << std::endl;
+  std::cout << "----------------------------" << std::endl;
   Time::SetResolution (Time::NS);
-//  LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
-//  LogComponentEnable ("PacketSink", LOG_LEVEL_INFO);
+  // LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
+  // LogComponentEnable ("PacketSink", LOG_LEVEL_INFO);
  
   // Set default values for simulation variables
   std::string dataFileName= "p1.data";
@@ -89,13 +92,13 @@ int main (int argc, char *argv[])
 
   // Set transport protocol based on user input
   if (tcpType.compare("TcpTahoe") == 0) {
-    std::cerr << "Setting default protocol to Tcp-Tahoe" << std::endl;
+    std::cout << "\nSetting default protocol to Tcp-Tahoe" << std::endl;
     Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpTahoe"));
   } else if(tcpType.compare("TcpReno") == 0) {
-    std::cerr << "Setting default protocol to Tcp-Reno" << std::endl;
+    std::cout << "\nSetting default protocol to Tcp-Reno" << std::endl;
     Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpReno"));
   } else {
-    std::cerr << "Invalid protocol: " << tcpType << std::endl;
+    std::cerr << "\nInvalid protocol: " << tcpType << std::endl;
     exit(-1);
   }
 
@@ -116,13 +119,10 @@ int main (int argc, char *argv[])
   // Internet (IP)     : Adds IP addresses stating where data is from and going.
   // Link (frame)      : Adds MAC address info to tell which HW device the message
   //                     is from and which HW device it is going to.
-  NS_LOG_INFO ("Intalling TCP/IP stack to all nodes");
   InternetStackHelper stack;
   dumbbell.InstallStack (stack);
   
   // Hardware is in place. Now assign IP addresses
-  NS_LOG_INFO ("Assign IP Addresses.");
-  std::cerr << "Assigning IP Addresses" << std::endl;
   Ipv4AddressHelper ltIps     = Ipv4AddressHelper ("10.1.1.0", "255.255.255.0");
   Ipv4AddressHelper rtIps     = Ipv4AddressHelper ("10.2.1.0", "255.255.255.0");
   Ipv4AddressHelper routerIps = Ipv4AddressHelper ("10.3.1.0", "255.255.255.0");
@@ -134,7 +134,6 @@ int main (int argc, char *argv[])
   ApplicationContainer sinkApps;
   Ptr<UniformRandomVariable> randNum = CreateObject<UniformRandomVariable> ();
 
-  std::cerr << "Creating BulkSendApplication" << std::endl;
   for (uint16_t i=0; i<numBulkSendApps; ++i) {
     // Create BulkSendApplication source using a BulkSendHelper, whose constructor
     // specifies the protocol to use and the address of the remote node to send
@@ -151,7 +150,6 @@ int main (int argc, char *argv[])
     // Create PacketSinkApplication sink using a PacketSinkHelper, whose constructor
     // specifies the protocol to use and the address of the sink.
     // We'll install it on the right-most node.
-    std::cerr << "Creating PacketSinkHelper" << std::endl;
     PacketSinkHelper sink ("ns3::TcpSocketFactory",
                            InetSocketAddress (Ipv4Address::GetAny (), port + i));
     sinkApps.Add (sink.Install (dumbbell.GetRight (0)));
@@ -164,7 +162,7 @@ int main (int argc, char *argv[])
   dumbbell.BoundingBox (1, 1, 100, 100);
   AnimationInterface animInterface(animFile);
   animInterface.EnablePacketMetadata(true);
-  std::cerr << "Saving animation file: " << animFile << std::endl;
+  std::cerr << "\nSaving animation file: " << animFile << std::endl;
 
   GnuplotHelper plotHelper;
   plotHelper.ConfigurePlot("plot-test",
@@ -185,21 +183,24 @@ int main (int argc, char *argv[])
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
   // Run simulation
-  NS_LOG_INFO ("Running Simulation...");
+  std::cout << "\nRuning simulation..." << std::endl;
   Simulator::Stop (Seconds (10.0));
   Simulator::Run ();
   Simulator::Destroy ();
-  NS_LOG_INFO ("Done!");
+  std::cout << "\nSimulation finished!" << std::endl;
 
   // Print out Goodput of the network communication from source to sink
   // Goodput: Amount of useful information (bytes) per unit time (seconds)
   std::vector<uint32_t> goodputs;
+  uint32_t i = 0;
   for(ApplicationContainer::Iterator it = sinkApps.Begin(); it != sinkApps.End(); ++it) {
     Ptr<PacketSink> sink1 = DynamicCast<PacketSink> (*it);
     uint32_t bytesRcvd = sink1->GetTotalRx ();
     goodputs.push_back(bytesRcvd / 10.0);
-    std::cout << "Total Bytes Received: " << bytesRcvd << std::endl;
-    std::cout << "Goodput = " << goodputs.back() << " Bytes/seconds" << std::endl;
+    std::cout << "\nFlow " << i << ":" << std::endl;
+    std::cout << "\tTotal Bytes Received: " << bytesRcvd << std::endl;
+    std::cout << "\tGoodput: " << goodputs.back() << " Bytes/seconds" << std::endl;
+    ++i;
   }
 
   // Write results to data file
@@ -213,7 +214,6 @@ int main (int argc, char *argv[])
     dataFile << "\t" << *gp;
   }
   dataFile  << "\n";
-
   dataFile.close();
 
   return 0;

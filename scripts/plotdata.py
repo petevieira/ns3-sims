@@ -8,6 +8,7 @@ import matplotlib.pylab as pylab
 import matplotlib.font_manager as fm
 from matplotlib.font_manager import FontProperties
 from mpl_toolkits.mplot3d import Axes3D
+import pvplot as pv
 
 """
 @brief Creates a bar chart.
@@ -167,6 +168,7 @@ def plotData2():
                 categories = range(10)
                 xdata = segSizes    # x data
                 ydata = {}
+                
                 for i in range(10):
                     td = tempData.ix[:,i+4]
                     ydata[i] = td
@@ -184,6 +186,16 @@ def plotData2():
                 elif(winSizes[w] == 64000):
                     s='64000'
                 imageName = tcpTypes[t] + "-win" + s + ".png"
+                # print 'xdata: \n', xdata
+                print '\n\nydata: \n', ydata
+                # print '\n\ncat: \n', categories
+                chart = pv.BarChart()
+                chart.setData(xdata, ydata, categories)
+                chart.setFont(font)
+                chart.setTitleAndLabels('Test Title', 'Segment Size (Bytes)', 'Goodput (Bytes/sec)')
+                chart.setLegend('Flow #', 'center right', 0.0, FontProperties(), (1.124, 0.7))
+                chart.plot()
+                exit()
                 bar_chart(categories, xdata, ydata,
                           title, xlabel, ylabel, font,
                           True, True, imageName)
