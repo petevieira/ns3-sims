@@ -1,17 +1,42 @@
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation;
+ * Copyright (c) 2014, Georgia Tech Research Corporation
+ * All rights reserved.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Author: Pete Vieira <pete.vieira@gatech.edu>
+ * Date: Jan 2014
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * This file is provided under the following "BSD-style" License:
+ *   Redistribution and use in source and binary forms, with or
+ *   without modification, are permitted provided that the following
+ *   conditions are met:
+ *
+ *   * Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the following disclaimer.
+ *
+ *   * Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the following
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
+ *
+ *   * Neither the name of the Humanoid Robotics Lab nor the names of
+ *     its contributors may be used to endorse or promote products
+ *     derived from this software without specific prior written
+ *     permission
+ *
+ *   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+ *   CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+ *   INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ *   MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ *   DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+ *   CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ *   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ *   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
+ *   USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+ *   AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ *   LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ *   ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *   POSSIBILITY OF SUCH DAMAGE.
  */
 
 // NS3 Includes
@@ -25,34 +50,43 @@
 #include "ns3/uinteger.h"
 #include "ns3/point-to-point-dumbbell.h"
 #include "ns3/drop-tail-queue.h"
-#include "ns3/gnuplot-helper.h"
 #include "ns3/random-variable-stream.h"
-
-// File writing includes
-//#include <iostream>
-//#include <fstream>
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE ("Project_01-TCP_Throughput_Measurments");
+NS_LOG_COMPONENT_DEFINE ("Project_02-Comparison of RED vs. DropTail Queuing");
 
 // Network topology (TCP/IP Protocol)
 //
-//                                   q1
 //
-// Node:            n0 ------------- n1 ------------ n2 ------------- n3
-// Bandwidth:             5 Mbps           1 Mbps           5 Mbps
-// Delay:                 10 ms            20 ms            10 ms
-// Subnet:               subnet 1         subnet 2         subnet 3
+//               100 Mbps  
+//             n ----                                                 ---- n
+//                   |  10 Mbs                                       |
+//             n --- n -----                                   ----- n --- n
+//                         |                                   |
+//             n ----      |                                   |      ---- n
+//                   |     |                                   |     |  
+// Node:       n --- n --- n0 ---------- n1 --------- n2 ----- n --- n --- n 
+// Bandwidth:              |   5 Mbps        1 Mbps    10 Mbps |
+//             n ----      |                                   |      ---- n
+//                   |     |                                   |     |
+//             n --- n ----                                     ---- n --- n
 //
 // - Flow from n0 to n3 using BulkSendApplication
 // - Receipt of bulk send at n3 using PacketSinkApplication
 // - Output trace file to p1.tr
+// - Vary DropTail queue size (30, 60, 120, 190, 240)
+//        RED minTh \ (queue length threshold to trigger probabilistic drops) 5 15 30 60 120
+//            maxTh \ (queue length threshold to trigger forced drops)        15 45 90 180 360
+//            maxP  \ (max probability of doing an early drop)                1/20 1/10 1/4
+//            Wq    \ (weighting factor for average queue length computation) 1/128 1/256 1/512
+//            qlen  \ (max # of packets that can be enqueued)                 480
+// - Compare goodput, which we assume is proportional to response time
 
 int main (int argc, char *argv[])
 {
   std::cout << "\n----------------------------" << std::endl;
-  std::cout << "    Running Simulation P1   " << std::endl;
+  std::cout << "    Running Simulation P2   " << std::endl;
   std::cout << "----------------------------" << std::endl;
   Time::SetResolution (Time::NS);
   // LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
@@ -70,6 +104,7 @@ int main (int argc, char *argv[])
   uint32_t segSize    = 512;
   uint32_t maxBytes   = 100000000;
   uint32_t numBulkSendApps = 1;
+  std::string queueType = "DropTail";
 
   // Parse command line arguments
   CommandLine cmd;
@@ -81,14 +116,26 @@ int main (int argc, char *argv[])
   cmd.AddValue ("queSize",    "Queue limit on the bottleneck link",      queSize);
   cmd.AddValue ("segSize",    "TCP segment size",                        segSize);
   cmd.AddValue ("maxBytes",   "Max bytes soure will send",               maxBytes);
-  cmd.AddValue ("numBulkSendApps", "Number of BulkSendApps",             numBulkSendApps);
+  // RED Parameters
+  cmd.AddValue ("queueType",  "Set Queue type to DropTail or RED",                       queueType);
+  cmd.AddValue ("minTh",      "Queue length threshold to trigger probabilistic drops",   minTh);
+  cmd.AddValue ("maxTh",      "Queue length threshold to trigger forced drops",          maxTh);
+  cmd.AddValue ("maxP",       "Max probability of doing an early drop",                  maxP);
+  cmd.AddValue ("Wq",         "Weighting factor for average queue length computation",   Wq);
+  cmd.AddValue ("qlen",       "Max number of bytes that can be enqueued",                qlen);
   cmd.Parse(argc, argv);
 
   // Set default values
   Config::SetDefault ("ns3::DropTailQueue::Mode", EnumValue(DropTailQueue::QUEUE_MODE_BYTES));
   Config::SetDefault ("ns3::DropTailQueue::MaxBytes", UintegerValue(queSize));
+  Config::SetDefault ("ns3::RedQueue::Mode", EnumValue(RedQueue::QUEUE_MODE_BYTES));
+  Config::SetDefault ("ns3::RedQueue::QueueLimit", UintegerValue (maxBytes));
   Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue(winSize));
   Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue(segSize));
+
+  if ((queueType != "RED") && (queueType != "DropTail")) {
+    NS_ABORT_MSG ("Invalid queue type: Use --queueType=RED or --queueType=DropTail");
+  }
 
   // Set transport protocol based on user input
   if (tcpType.compare("TcpTahoe") == 0) {
@@ -101,6 +148,10 @@ int main (int argc, char *argv[])
     std::cerr << "\nInvalid protocol: " << tcpType << std::endl;
     exit(-1);
   }
+
+  //---------------------------------------------------------------
+  //                     CREATE TOPOLOGY
+  //---------------------------------------------------------------
 
   // Let's use the dumbbell helper to setup left and right nodes with
   // two routers in the middle
@@ -163,19 +214,6 @@ int main (int argc, char *argv[])
   AnimationInterface animInterface(animFile);
   animInterface.EnablePacketMetadata(true);
   std::cerr << "\nSaving animation file: " << animFile << std::endl;
-
-  GnuplotHelper plotHelper;
-  plotHelper.ConfigurePlot("plot-test",
-                           "Title",
-                           "xLegend",
-                           "ylegend",
-                           "png");
-
-  plotHelper.PlotProbe("ns3::Ipv4PacketProbe",
-                       "/NodeList/*/$ns3::Ipv4L3Protocol/Tx",
-                       "OutputBytes-p1",
-                       "Packet Byte Count",
-                       GnuplotAggregator::KEY_BELOW);
 
   // Uses shortest path search from every node to every possible destination
   // to tell nodes how to route packets. A routing table is the next top route
