@@ -105,13 +105,13 @@ int main (int argc, char *argv[])
   uint32_t queSize    = 2000;
   uint32_t segSize    = 512;
   uint32_t maxBytes   = 100000000;
-  uint32_t maxP;
-  std::string queueType = "DropTail";
+  uint32_t maxP = .8;
+  std::string queueType = "RED";
   // RED Queue attributes
-  double minTh;
-  double maxTh;
-  double Wq;
-  uint32_t qlen;
+  double minTh = .3;
+  double maxTh = .9;
+  double Wq = .3;
+  uint32_t qlen = 10000;
 
   // Parse command line arguments
   CommandLine cmd;
@@ -142,10 +142,12 @@ int main (int argc, char *argv[])
   Config::SetDefault ("ns3::RedQueue::QW", DoubleValue(Wq));
   Config::SetDefault ("ns3::RedQueue::QueueLimit", UintegerValue (qlen));
   // TCP defaults
-  Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue("ns3::TcpTahoe"));
   Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue(winSize));
   Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue(segSize));
   // UDP defaults
+  Config::SetDefault ("ns3::OnOffApplication::PacketSize", UintegerValue (2048));
+  Config::SetDefault ("ns3::OnOffApplication::DataRate", StringValue ("8kbps"));
+
 
   // Check Queue type user input
   if (queueType == "RED") {
@@ -212,13 +214,14 @@ int main (int argc, char *argv[])
   //----------------------------------
   //     PLACE NODES FOR ANIMATION
   //----------------------------------
+  // NetAnim positions are only positive
   // Add router node locations
   for(uint32_t i=0; i<routerNodes.GetN(); ++i) {
     Ptr<Node> node = routerNodes.Get(i);
     Ptr<ConstantPositionMobilityModel> loc = node->GetObject<ConstantPositionMobilityModel>();
     loc = CreateObject<ConstantPositionMobilityModel>();
     node->AggregateObject(loc);
-    Vector locVec(i, 0, 0);
+    Vector locVec(i, 2, 0);
     loc->SetPosition(locVec);
   }
   // Add left node locations
@@ -227,7 +230,7 @@ int main (int argc, char *argv[])
     Ptr<ConstantPositionMobilityModel> loc = node->GetObject<ConstantPositionMobilityModel>();
     loc = CreateObject<ConstantPositionMobilityModel>();
     node->AggregateObject(loc);
-    Vector locVec(-1, 1 + i, 0);
+    Vector locVec(-1, 3 - i, 0);
     loc->SetPosition(locVec);
   }
   // Add right node locations
@@ -236,7 +239,7 @@ int main (int argc, char *argv[])
     Ptr<ConstantPositionMobilityModel> loc = node->GetObject<ConstantPositionMobilityModel>();
     loc = CreateObject<ConstantPositionMobilityModel>();
     node->AggregateObject(loc);
-    Vector locVec(4, 1 + i, 0);
+    Vector locVec(4, 3 - i, 0);
     loc->SetPosition(locVec);
   }
 
@@ -324,35 +327,38 @@ int main (int argc, char *argv[])
 
   // Set port
   uint16_t port = 9;
-
+  // uint16_t udpPort = 10;
 
   //---------------------------
   //    INSTALL SOURCE APPS
   //---------------------------
-  // TCP On/Off 1
-  OnOffHelper onOffTcp1("ns3::TcpSocketFactory", InetSocketAddress(ifaceLinks[3].GetAddress(1)));
+  // UDP On/Off 1
+  OnOffHelper onOffUdp1("ns3::UdpSocketFactory", Address(InetSocketAddress(ifaceLinks[6].GetAddress(1), port)));
+  onOffUdp1.SetConstantRate(DataRate("2kbps"));
+  onOffUdp1.SetAttribute("PacketSize", UintegerValue(50));
+  // // TCP On/Off 1
+  OnOffHelper onOffTcp1("ns3::TcpSocketFactory", Address(InetSocketAddress(ifaceLinks[7].GetAddress(1), port)));
   onOffTcp1.SetConstantRate(DataRate("2kbps"));
   onOffTcp1.SetAttribute("PacketSize", UintegerValue(50));
   // TCP On/Off 2
-  OnOffHelper onOffTcp2("ns3::TcpSocketFactory", InetSocketAddress(ifaceLinks[4].GetAddress(1)));
+  OnOffHelper onOffTcp2("ns3::TcpSocketFactory", Address(InetSocketAddress(ifaceLinks[8].GetAddress(1), port)));
   onOffTcp2.SetConstantRate(DataRate("2kbps"));
   onOffTcp2.SetAttribute("PacketSize", UintegerValue(50));
-  // UDP On/Off 1
-  OnOffHelper onOffUdp1("ns3::UdpSocketFactory", InetSocketAddress(ifaceLinks[5].GetAddress(1)));
-  onOffUdp1.SetConstantRate(DataRate("2kbps"));
-  onOffUdp1.SetAttribute("PacketSize", UintegerValue(50));
   // Add source apps
   ApplicationContainer sourceApps;
   sourceApps.Add(onOffTcp1.Install(c3l5.Get(1)));
   sourceApps.Add(onOffTcp2.Install(c3l6.Get(1)));
   sourceApps.Add(onOffUdp1.Install(c3l4.Get(1)));
+  // Set up run time of source apps
+  sourceApps.Start(Seconds(1.0));
+  sourceApps.Stop(Seconds(50.0));
 
 
   //---------------------------
   //    INSTALL SINK APPS
   //---------------------------
   // Create Udp sink app and install it on node r7
-  PacketSinkHelper sinkUpd1("ns3::UdpSocketFactory",
+  PacketSinkHelper sinkUdp1("ns3::UdpSocketFactory",
                             Address(InetSocketAddress(Ipv4Address::GetAny(), port)));
   // Create Tcp sink apps and install them on nodes r8 & r9
   PacketSinkHelper sinkTcp1("ns3::TcpSocketFactory",
@@ -363,9 +369,10 @@ int main (int argc, char *argv[])
   ApplicationContainer sinkApps;
   sinkApps.Add(sinkTcp1.Install(c2r8.Get(1)));
   sinkApps.Add(sinkTcp2.Install(c2r9.Get(1)));
-  sinkApps.Add(sinkUpd1.Install(c2r7.Get(1)));
+  sinkApps.Add(sinkUdp1.Install(c2r7.Get(1)));
+  // Set up runtime of sink apps
   sinkApps.Start(Seconds(0.0));
-  sinkApps.Stop(Seconds(10.0));
+  sinkApps.Stop(Seconds(50.0));
 
 
   //------------------------------
@@ -391,7 +398,7 @@ int main (int argc, char *argv[])
   //    RUN SIMULATION
   //---------------------
   std::cout << "\nRuning simulation..." << std::endl;
-  Simulator::Stop (Seconds (10.0));
+  Simulator::Stop (Seconds (50.0));
   Simulator::Run ();
   Simulator::Destroy ();
   std::cout << "\nSimulation finished!" << std::endl;
