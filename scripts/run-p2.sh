@@ -110,7 +110,8 @@ Run()
             do
                 for (( w=0; w<${#wQ[@]}; ++w ))
                 do
-                    ./waf --run "p2 \
+                    if (${minTh[$min]} < ${maxTh[$max]}); then
+                        ./waf --run "p2 \
                      --queueType=${queueType[1]} \
                      --winSize=${winSize[$win]} \
                      --minTh=${minTh[$min]} \
@@ -118,6 +119,7 @@ Run()
                      --maxP=${maxP[$maxp]} \
                      --Wq=${wQ[$w]} \
                      --qlen=${qlen}"
+                    fi
                 done
             done
         done
