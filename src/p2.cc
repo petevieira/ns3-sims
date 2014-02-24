@@ -4,7 +4,7 @@
  * All rights reserved.
  *
  * Author: Pete Vieira <pete.vieira@gatech.edu>
- * Date: Jan 2014
+ * Date: Feb 2014
  *
  * This file is provided under the following "BSD-style" License:
  *   Redistribution and use in source and binary forms, with or
@@ -53,10 +53,6 @@
 #include "ns3/random-variable-stream.h"
 #include "ns3/constant-position-mobility-model.h"
 
-using namespace ns3;
-
-NS_LOG_COMPONENT_DEFINE ("Project_02-Comparison of RED vs. DropTail Queuing");
-
 // Network topology (TCP/IP Protocol)
 //                   q1
 //
@@ -75,14 +71,21 @@ NS_LOG_COMPONENT_DEFINE ("Project_02-Comparison of RED vs. DropTail Queuing");
 //
 // - Flow from n0 to n3 using BulkSendApplication
 // - Receipt of bulk send at n3 using PacketSinkApplication
-// - Output trace file to p1.tr
-// - Vary DropTail queue size (30, 60, 120, 190, 240)
+
+// - Parameters to vary
+//        DropTail queue size (30, 60, 120, 190, 240)
+
 //        RED minTh \ (queue length threshold to trigger probabilistic drops) 5 15 30 60 120
 //            maxTh \ (queue length threshold to trigger forced drops)        15 45 90 180 360
 //            maxP  \ (max probability of doing an early drop)                1/20 1/10 1/4
 //            Wq    \ (weighting factor for average queue length computation) 1/128 1/256 1/512
 //            qlen  \ (max # of packets that can be enqueued)                 480
+
 // - Compare goodput, which we assume is proportional to response time
+
+using namespace ns3;
+
+NS_LOG_COMPONENT_DEFINE ("Project_02-Comparison of RED vs. DropTail Queuing");
 
 int main (int argc, char *argv[])
 {
@@ -90,40 +93,38 @@ int main (int argc, char *argv[])
   std::cout << "    Running Simulation P2   " << std::endl;
   std::cout << "----------------------------" << std::endl;
   Time::SetResolution (Time::NS);
-  // LogComponentEnable ("BulkSendApplication", LOG_LEVEL_INFO);
-  // LogComponentEnable ("PacketSink", LOG_LEVEL_INFO);
  
   // Set default values for simulation variables
-  std::string dataFileName= "p2.data";
-  std::string animFile= "p2-anim.xml";
-  std::string tcpType = "TcpTahoe";
-  uint32_t numNodes = 10;
-  // uint32_t numLeaf1Nodes = 3;
-  // uint32_t numLeaf2Nodes = 2;
-  // uint32_t numUdpLeaves = 1;
-  uint32_t winSize    = 2000;
-  uint32_t queSize    = 2000;
-  uint32_t segSize    = 512;
-  uint32_t maxBytes   = 100000000;
-  uint32_t maxP = .8;
-  std::string queueType = "RED";
-  // RED Queue attributes
-  double minTh = .3;
-  double maxTh = .9;
-  double Wq = .3;
-  uint32_t qlen = 10000;
+  std::string dataFileName= "p2.data"; // data file name
+  std::string animFile= "p2-anim.xml"; // animation file name
+  std::string queueType = "DropTail";  // queue type
+  uint32_t numNodes = 10;              // number of nodes
+  uint32_t winSize = 2000;             // receiver window size
+  // uint32_t dutyCycle = 0.5;
 
-  // Parse command line arguments
+  // DropTail Queue attributes
+  uint32_t maxBytes = 3000;
+
+  // RED Queue attributes
+  double minTh = 5.;     
+  double maxTh = 15.;
+  double Wq = 1./128.;
+  uint32_t qlen = 480;
+  double maxP = 1./20.;
+
+
+  //-----------------------------------
+  //   PARSE COMMAND LINE ARGUMENTS
+  //-----------------------------------
   CommandLine cmd;
+  // File parameters
   cmd.AddValue ("dataFileName",   "Data file name",                      dataFileName);
   cmd.AddValue ("animFile",   "Animation file name",                     animFile);
-  cmd.AddValue ("tcpType",    "TCP type (use TcpReno or TcpTahoe)",      tcpType);
-  cmd.AddValue ("winSize",    "Receiver advertised window size (bytes)", winSize);
-  cmd.AddValue ("queSize",    "Queue limit on the bottleneck link",      queSize);
-  cmd.AddValue ("segSize",    "TCP segment size",                        segSize);
-  cmd.AddValue ("maxBytes",   "Max bytes soure will send",               maxBytes);
-  // RED Parameters
-  cmd.AddValue ("queueType",  "Set Queue type to DropTail or RED",                       queueType);
+  cmd.AddValue ("winSize",    "Receiver window size (Bytes)",            winSize);
+  cmd.AddValue ("queueType",  "Set Queue type to DropTail or RED",       queueType);
+  // DropTail parameters
+  cmd.AddValue ("maxBytes",   "Max bytes source will send",              maxBytes);
+  // RED parameters
   cmd.AddValue ("minTh",      "Queue length threshold to trigger probabilistic drops",   minTh);
   cmd.AddValue ("maxTh",      "Queue length threshold to trigger forced drops",          maxTh);
   cmd.AddValue ("maxP",       "Max probability of doing an early drop",                  maxP);
@@ -131,40 +132,46 @@ int main (int argc, char *argv[])
   cmd.AddValue ("qlen",       "Max number of bytes that can be enqueued",                qlen);
   cmd.Parse(argc, argv);
 
-  // Set default values
+
+  //------------------------
+  //   SET DEFAULT VALUES
+  //------------------------
   // DropTail Queue defaults
   Config::SetDefault ("ns3::DropTailQueue::Mode", EnumValue(DropTailQueue::QUEUE_MODE_BYTES));
-  Config::SetDefault ("ns3::DropTailQueue::MaxBytes", UintegerValue(queSize));
+  Config::SetDefault ("ns3::DropTailQueue::MaxBytes", UintegerValue(maxBytes));
+
   // RED Queue defaults
-  Config::SetDefault ("ns3::RedQueue::Mode", EnumValue(RedQueue::QUEUE_MODE_BYTES));
+  Config::SetDefault ("ns3::RedQueue::Mode", EnumValue (RedQueue::QUEUE_MODE_BYTES));
   Config::SetDefault ("ns3::RedQueue::MinTh", DoubleValue (minTh));
   Config::SetDefault ("ns3::RedQueue::MaxTh", DoubleValue (maxTh));
-  Config::SetDefault ("ns3::RedQueue::QW", DoubleValue(Wq));
+  Config::SetDefault ("ns3::RedQueue::QW", DoubleValue (Wq));
   Config::SetDefault ("ns3::RedQueue::QueueLimit", UintegerValue (qlen));
+  Config::SetDefault ("ns3::RedQueue::LInterm", DoubleValue (maxP));
+  std::cerr << "Red Queue\n"
+            << "\tMinTh = " << minTh << "\n"
+            << "\tMaxTh = " << maxTh << "\n"
+            << "\tWq    = " << Wq    << "\n"
+            << "\tqLen  = " << qlen  << "\n"
+            << "\tmaxP  = " << maxP  << "\n"
+            << std::endl;
+
   // TCP defaults
   Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue(winSize));
-  Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue(segSize));
-  // UDP defaults
-  Config::SetDefault ("ns3::OnOffApplication::PacketSize", UintegerValue (2048));
-  Config::SetDefault ("ns3::OnOffApplication::DataRate", StringValue ("8kbps"));
 
+  // UDP defaults
+  // Config::SetDefault ("ns3::OnOffApplication::PacketSize", UintegerValue (2048));
+  // Config::SetDefault ("ns3::OnOffApplication::DataRate", StringValue ("8kbps"));
 
   // Check Queue type user input
+  std::string qType;
   if (queueType == "RED") {
-    queueType = "ns3::RedQueue";
+    qType = "ns3::RedQueue";
   } else if (queueType == "DropTail") {
-    queueType = "ns3::DropTailQueue";
+    qType = "ns3::DropTailQueue";
   } else {
     NS_ABORT_MSG ("Invalid queue type: Use --queueType=RED or --queueType=DropTail");
   }
 
-
-  //---------------------------------------------------------------
-  //                     CREATE TOPOLOGY
-  //---------------------------------------------------------------
-  // 1. Create point to point helpers for each set of links
-  // 2. Create NodeContainers and add nodes to them
-  // 3. Create NetDeviceContainers and install the nodes onto them
 
   //------------------------
   //      CREATE NODES
@@ -251,15 +258,14 @@ int main (int argc, char *argv[])
   PointToPointHelper bottleneck1;
   bottleneck1.SetDeviceAttribute ("DataRate", StringValue ("10Mbps"));
   bottleneck1.SetChannelAttribute ("Delay", StringValue ("5ms"));
-  bottleneck1.SetQueue (queueType);
-                        
+  bottleneck1.SetQueue (qType);
   NetDeviceContainer dc0c3 = bottleneck1.Install(c0c3);
 
   // Bottleneck 2
   PointToPointHelper bottleneck2;
   bottleneck2.SetDeviceAttribute ("DataRate", StringValue ("1Mbps"));
   bottleneck2.SetChannelAttribute ("Delay", StringValue ("10ms"));
-  bottleneck2.SetQueue (queueType);
+  bottleneck2.SetQueue (qType);
   NetDeviceContainer dc1c2 = bottleneck2.Install(c1c2);
 
   // Center routers
@@ -271,7 +277,7 @@ int main (int argc, char *argv[])
   // Left leaves
   PointToPointHelper p2pLeft;
   p2pLeft.SetDeviceAttribute ("DataRate", StringValue ("15Mbps"));
-  p2pLeft.SetChannelAttribute ("Delay", StringValue ("10ms"));
+  p2pLeft.SetChannelAttribute ("Delay", StringValue ("5ms"));
   NetDeviceContainer dc3l4 = p2pLeft.Install(c3l4);
   NetDeviceContainer dc3l5 = p2pLeft.Install(c3l5);
   NetDeviceContainer dc3l6 = p2pLeft.Install(c3l6);
@@ -285,18 +291,9 @@ int main (int argc, char *argv[])
   NetDeviceContainer dc2r9 = p2pRight.Install(c2r9);
   
   // Create vector of NetDeviceContainer to loop through when assigning ip addresses
-  // NetDeviceContainer devsArray[] = {dc1c2, dc0c1, dc3l4, dc3l5, dc3l6, dc2r7, dc2r8, dc2r9};
-  // std::vector<NetDeviceContainer> devices(devsArray, devsArray + sizeof(devsArray) / sizeof(NetDeviceContainer));
-  std::vector<NetDeviceContainer> devices;
-  devices.push_back(dc0c3);
-  devices.push_back(dc1c2);
-  devices.push_back(dc0c1);
-  devices.push_back(dc3l4);
-  devices.push_back(dc3l5);
-  devices.push_back(dc3l6);
-  devices.push_back(dc2r7);
-  devices.push_back(dc2r8);
-  devices.push_back(dc2r9);
+  NetDeviceContainer devsArray[] = {dc0c3, dc1c2, dc0c1, dc3l4, dc3l5, dc3l6, dc2r7, dc2r8, dc2r9};
+  std::vector<NetDeviceContainer> devices(devsArray, devsArray + sizeof(devsArray) / sizeof(NetDeviceContainer));
+
 
   //-------------------------
   //    ADD INTERNET STACK
@@ -325,33 +322,41 @@ int main (int argc, char *argv[])
     ifaceLinks[i] = ipv4.Assign(devices[i]);
   }
 
-  // Set port
-  uint16_t port = 9;
-  // uint16_t udpPort = 10;
 
   //---------------------------
   //    INSTALL SOURCE APPS
   //---------------------------
+  double load = 2;
+  double bottleneckBW = 1000000; // Mbps
+  double numSources = 3;
+  double dutyCycle = 0.5;
+  uint64_t rate = (uint64_t)(load*bottleneckBW / numSources / dutyCycle);
+
+  // Set port
+  uint16_t port = 9;
   // UDP On/Off 1
   OnOffHelper onOffUdp1("ns3::UdpSocketFactory", Address(InetSocketAddress(ifaceLinks[6].GetAddress(1), port)));
-  onOffUdp1.SetConstantRate(DataRate("2kbps"));
-  onOffUdp1.SetAttribute("PacketSize", UintegerValue(50));
+  onOffUdp1.SetConstantRate(DataRate(rate));
+  onOffUdp1.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=0.5]"));
+  onOffUdp1.SetAttribute("OffTime", StringValue("ns3::ConstantRandomVariable[Constant=0.5]"));
   // // TCP On/Off 1
   OnOffHelper onOffTcp1("ns3::TcpSocketFactory", Address(InetSocketAddress(ifaceLinks[7].GetAddress(1), port)));
-  onOffTcp1.SetConstantRate(DataRate("2kbps"));
-  onOffTcp1.SetAttribute("PacketSize", UintegerValue(50));
+  onOffTcp1.SetConstantRate(DataRate(rate));
+  onOffTcp1.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=0.5]"));
+  onOffTcp1.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=0.5]"));
   // TCP On/Off 2
   OnOffHelper onOffTcp2("ns3::TcpSocketFactory", Address(InetSocketAddress(ifaceLinks[8].GetAddress(1), port)));
-  onOffTcp2.SetConstantRate(DataRate("2kbps"));
-  onOffTcp2.SetAttribute("PacketSize", UintegerValue(50));
+  onOffTcp2.SetConstantRate(DataRate(rate));
+  onOffTcp2.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=0.5]"));
+  onOffTcp2.SetAttribute("OnTime", StringValue("ns3::ConstantRandomVariable[Constant=0.5]"));
   // Add source apps
   ApplicationContainer sourceApps;
   sourceApps.Add(onOffTcp1.Install(c3l5.Get(1)));
   sourceApps.Add(onOffTcp2.Install(c3l6.Get(1)));
   sourceApps.Add(onOffUdp1.Install(c3l4.Get(1)));
   // Set up run time of source apps
-  sourceApps.Start(Seconds(1.0));
-  sourceApps.Stop(Seconds(50.0));
+  sourceApps.Start(Seconds(0.0));
+  sourceApps.Stop(Seconds(10.0));
 
 
   //---------------------------
@@ -372,7 +377,7 @@ int main (int argc, char *argv[])
   sinkApps.Add(sinkUdp1.Install(c2r7.Get(1)));
   // Set up runtime of sink apps
   sinkApps.Start(Seconds(0.0));
-  sinkApps.Stop(Seconds(50.0));
+  sinkApps.Stop(Seconds(10.0));
 
 
   //------------------------------
@@ -398,7 +403,7 @@ int main (int argc, char *argv[])
   //    RUN SIMULATION
   //---------------------
   std::cout << "\nRuning simulation..." << std::endl;
-  Simulator::Stop (Seconds (50.0));
+  Simulator::Stop (Seconds (10.0));
   Simulator::Run ();
   Simulator::Destroy ();
   std::cout << "\nSimulation finished!" << std::endl;
@@ -426,17 +431,21 @@ int main (int argc, char *argv[])
   //    WRITE DATA TO FILE
   //-------------------------
   // Write results to data file
-  // std::ofstream dataFile;
-  // dataFile.open(dataFileName.c_str(), std::fstream::out | std::fstream::app);
-  // dataFile << tcpType << "\t"
-  //          << winSize << "\t"
-  //          << queSize << "\t"
-  //          << segSize;
-  // for(std::vector<uint32_t>::iterator gp = goodputs.begin(); gp != goodputs.end(); ++gp) {
-  //   dataFile << "\t" << *gp;
-  // }
-  // dataFile  << "\n";
-  // dataFile.close();
+  std::ofstream dataFile;
+  dataFile.open(dataFileName.c_str(), std::fstream::out | std::fstream::app);
+  dataFile << queueType << "\t"
+           << winSize << "\t"
+           << maxBytes << "\t"
+           << minTh << "\t"
+           << maxTh << "\t"
+           << maxP << "\t"
+           << Wq << "\t"
+           << qlen << "\t";
+  for(std::vector<uint32_t>::iterator gp = goodputs.begin(); gp != goodputs.end(); ++gp) {
+    dataFile << "\t" << *gp;
+  }
+  dataFile  << "\n";
+  dataFile.close();
 
 
   // return
