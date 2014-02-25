@@ -4,7 +4,7 @@
 import matplotlib.pylab as pylab
 from matplotlib.font_manager import FontProperties
 # Logging imports
-import logging as log
+import logging
 
 class BarChart:
 
@@ -17,6 +17,7 @@ class BarChart:
         self._xLabel = 'X-Axis'
         self._yLabel = 'Y-Axis'
         self._saveName = 'fig.png'
+        self._saveFig = False
         # Data
         self._xData = {}
         self._yData = {}
@@ -28,11 +29,16 @@ class BarChart:
         self._legendLabelSpacing = 0.0
         self._legendFontProp = FontProperties()
         self._legendBboxToAnchor = None
-        log.debug('Finished BarChart __init__()')
+        self._logger = logging.getLogger('Plot_Logger')
+        self._logger.addHandler(logging.StreamHandler())
+        self._logger.debug('Finished BarChart __init__()')
 
     def setColors(self, colors):
         self._colors = colors
-        log.debug('Setting bar colors')
+        self._logger.debug('Setting bar colors')
+
+    def setLogLevel(self, logLevel):
+        self._logger.setLevel(logLevel)
 
     def setLegend(self, legendTitle='Legend', legendLocation='center top',
                   labelspacing=0.0, fontProp=FontProperties(), bbox_to_anchor=None):
@@ -42,55 +48,55 @@ class BarChart:
         self._legendLabelSpacing = labelspacing
         self._legendFontProps = fontProp
         self._legendBboxToAnchor = bbox_to_anchor
-        log.debug('Set legend parameters')
+        self._logger.debug('Set legend parameters')
 
     def setFont(self, font):
         self._font = font
-        log.debug('Setting font')
+        self._logger.debug('Setting font')
 
     def setXData(self, xData):
         self._xData = xData
-        log.debug('Setting x-data')
+        self._logger.debug('Setting x-data')
 
     def setYData(self, yData):
         self._yData = yData
-        log.debug('Setting y-data')
+        self._logger.debug('Setting y-data')
 
     def setCategoryData(self, categoryData):
         self._categoryData = categoryData
-        log.debug('Setting category data')
+        self._logger.debug('Setting category data')
 
     def setData(self, xData, yData, categoryData):
         self.setXData(xData)
         self.setYData(yData)
         self.setCategoryData(categoryData)
-        log.debug('Setting x, y and category data')
+        self._logger.debug('Setting x, y and category data')
 
     def setTitle(self, title):
         self._title = title
-        log.debug('Setting plot title')
+        self._logger.debug('Setting plot title')
 
     def setXLabel(self, xLabel):
         self._xLabel = xLabel
-        log.debug('Setting x-axis label')
+        self._logger.debug('Setting x-axis label')
 
     def setYLabel(self, yLabel):
         self._yLabel = yLabel
-        log.debug('Setting y-axis label')
+        self._logger.debug('Setting y-axis label')
 
     def setTitleAndLabels(self, title, xLabel, yLabel):
         self.setTitle(title)
         self.setXLabel(xLabel)
         self.setYLabel(yLabel)
-        log.debug('Setting title and axis labels')
+        self._logger.debug('Setting title and axis labels')
 
     def setSaveName(self, saveName):
         self._saveName = saveName
-        log.debug('Setting save name')
+        self._logger.debug('Setting save name')
 
     def savePlotAs(self, imageName):
-        pylab.savefig(imageName)
-        log.debug('Saveing plot as ', imageName)
+        self.setSaveName(imageName)
+        self._saveFig = True
 
     def readyToPlot(self):
         if (self._xData == {} or self._yData == {} or self._categoryData == {}):
@@ -99,7 +105,7 @@ class BarChart:
             return True
 
     def plot(self):
-        print 'plotting'
+        self._logger.debug('plotting')
         colors = self._colors[:(len(self._categoryData))]
         ind = pylab.arange(len(self._xData))
         bar_width = 1.0 / (len(self._categoryData) + 1)
@@ -119,10 +125,8 @@ class BarChart:
         pylab.xlabel(self._xLabel, fontdict=self._font)
         pylab.ylabel(self._yLabel, fontdict=self._font)
         pylab.title(self._title, fontdict=self._font)
+        if(self._saveFig):
+            self._logger.debug('Saving plot as {}'.format(self._saveName))
+            pylab.savefig(self._saveName)
 
         pylab.show()
-        
-class LineChart:
-
-    def __init__(self):
-

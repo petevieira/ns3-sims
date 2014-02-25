@@ -25,7 +25,7 @@ Run()
     # Animation file name prefix
     declare -l animFilePrefix="p2-anim-"
 
-    declare -l fileHeader="QueueType WindowSize QueueSize minTh maxTh maxP Wq qlen Goodput1 Goodput2 Goodput3"
+    declare -l fileHeader="QueueType Load WindowSize QueueSize minTh maxTh maxP Wq qlen GoodputT1 GoodputT2 GoodputU"
 
     # TCP protocol to use
     declare -a queueType=("DropTail"
@@ -45,18 +45,18 @@ Run()
                         "64000"
                         )
     # minTh
-    declare -a minTh=("5."
-                      "15."
-                      "30."
-                      "60."
-                      "120."
+    declare -a minTh=("5"
+                      "15"
+                      "30"
+                      "60"
+                      "120"
                       )
 
-    declare -a maxTh=("15."
-                      "45."
-                      "90."
-                      "180."
-                      "360."
+    declare -a maxTh=("15"
+                      "45"
+                      "90"
+                      "180"
+                      "360"
                       )
     declare -a maxP=(".05"
                      ".1"
@@ -67,6 +67,11 @@ Run()
                    "0.001953125"    # 1/512
                    )
     declare qlen="480"
+    declare -a load=("0.5"
+                     "0.7"
+                     "0.9"
+                     "1.0"
+                     )
 
 
     echo -e "${BLUE}Running P2 Simluation... ${GRAY}\n"
@@ -89,37 +94,46 @@ Run()
     #########################
     # Drop Tail Expirements #
     #########################
-    for (( que=0; que<${#queSize[@]}; ++que ))
-    do
-        ./waf --run "p2 \
-              --queueType=DropTail \
-              --maxBytes=${queSize[$que]}"
-    done
-
+    # for (( lode=0; lode<${#load[@]}; ++lode ))
+    # do
+    #     for (( que=0; que<${#queSize[@]}; ++que ))
+    #     do
+    #         ./waf --run "p2 \
+    #           --queueType=DropTail \
+    #           --winSize=64000 \
+    #           --maxBytes=${queSize[$que]} \
+    #           --load=${load[$lode]}"
+    #     done
+    # done
+    # exit 0
 
     echo "Running RED experiments"
 
     ###################
     # RED Experiments #
     ###################
-    for (( min=0; min<${#minTh[@]}; ++min ))
+    for (( lode=0; lode<${#load[@]}; ++lode ))
     do
-        for (( max=0; max<${#maxTh[@]}; ++max ))
+        for (( min=0; min<${#minTh[@]}; ++min ))
         do
-            for (( maxp=0; maxp<${#maxP[@]}; ++maxp ))
+            for (( max=0; max<${#maxTh[@]}; ++max ))
             do
-                for (( w=0; w<${#wQ[@]}; ++w ))
+                for (( maxp=0; maxp<${#maxP[@]}; ++maxp ))
                 do
-                    if (${minTh[$min]} < ${maxTh[$max]}); then
-                        ./waf --run "p2 \
-                     --queueType=${queueType[1]} \
-                     --winSize=${winSize[$win]} \
-                     --minTh=${minTh[$min]} \
-                     --maxTh=${maxTh[$max]} \
-                     --maxP=${maxP[$maxp]} \
-                     --Wq=${wQ[$w]} \
-                     --qlen=${qlen}"
-                    fi
+                    for (( w=0; w<${#wQ[@]}; ++w ))
+                    do
+                        if [[ ${minTh[$min]} < ${maxTh[$max]} ]]; then
+                            ./waf --run "p2 \
+                                  --queueType=${queueType[1]} \
+                                  --winSize=64000 \
+                                  --minTh=${minTh[$min]} \
+                                  --maxTh=${maxTh[$max]} \
+                                  --maxP=${maxP[$maxp]} \
+                                  --Wq=${wQ[$w]} \
+                                  --qlen=${qlen} \
+                                  --load=${load[$lode]}"
+                        fi
+                    done
                 done
             done
         done

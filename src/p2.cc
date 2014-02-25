@@ -112,6 +112,8 @@ int main (int argc, char *argv[])
   uint32_t qlen = 480;
   double maxP = 1./20.;
 
+  double load = 0.5;
+
 
   //-----------------------------------
   //   PARSE COMMAND LINE ARGUMENTS
@@ -130,6 +132,9 @@ int main (int argc, char *argv[])
   cmd.AddValue ("maxP",       "Max probability of doing an early drop",                  maxP);
   cmd.AddValue ("Wq",         "Weighting factor for average queue length computation",   Wq);
   cmd.AddValue ("qlen",       "Max number of bytes that can be enqueued",                qlen);
+  // Load
+  cmd.AddValue ("load",       "Load", load);
+
   cmd.Parse(argc, argv);
 
 
@@ -147,13 +152,6 @@ int main (int argc, char *argv[])
   Config::SetDefault ("ns3::RedQueue::QW", DoubleValue (Wq));
   Config::SetDefault ("ns3::RedQueue::QueueLimit", UintegerValue (qlen));
   Config::SetDefault ("ns3::RedQueue::LInterm", DoubleValue (maxP));
-  std::cerr << "Red Queue\n"
-            << "\tMinTh = " << minTh << "\n"
-            << "\tMaxTh = " << maxTh << "\n"
-            << "\tWq    = " << Wq    << "\n"
-            << "\tqLen  = " << qlen  << "\n"
-            << "\tmaxP  = " << maxP  << "\n"
-            << std::endl;
 
   // TCP defaults
   Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue(winSize));
@@ -326,11 +324,10 @@ int main (int argc, char *argv[])
   //---------------------------
   //    INSTALL SOURCE APPS
   //---------------------------
-  double load = 2;
-  double bottleneckBW = 1000000; // Mbps
-  double numSources = 3;
-  double dutyCycle = 0.5;
-  uint64_t rate = (uint64_t)(load*bottleneckBW / numSources / dutyCycle);
+  double bottleneckBW = 1000000; // bits per second
+  double numSources = 3;         // number of source apps to divey load between
+  double dutyCycle = 0.5;        // duty cycle
+  uint64_t rate = (uint64_t)(load*bottleneckBW / numSources / dutyCycle); // rate per source onoff app
 
   // Set port
   uint16_t port = 9;
@@ -408,6 +405,17 @@ int main (int argc, char *argv[])
   Simulator::Destroy ();
   std::cout << "\nSimulation finished!" << std::endl;
 
+  std::cerr << "queueType = " << queueType << "\n"
+            << "load = " << load << "\n"
+            << "winSize = " << winSize << "\n"
+            << "maxBytes = " << maxBytes << "\n"
+            << "\tMinTh = " << minTh << "\n"
+            << "\tMaxTh = " << maxTh << "\n"
+            << "\tmaxP  = " << maxP  << "\n"
+            << "\tWq    = " << Wq    << "\n"
+            << "\tqLen  = " << qlen  << "\n"
+            << std::endl;
+
 
   //------------------------
   //    COMPUTE GOODPUT
@@ -434,6 +442,7 @@ int main (int argc, char *argv[])
   std::ofstream dataFile;
   dataFile.open(dataFileName.c_str(), std::fstream::out | std::fstream::app);
   dataFile << queueType << "\t"
+           << load << "\t"
            << winSize << "\t"
            << maxBytes << "\t"
            << minTh << "\t"
