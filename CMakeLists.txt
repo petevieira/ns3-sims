@@ -48,20 +48,26 @@ link_libraries(ns3-aodv                   ns3-applications
         	   ns3-test					  ns3-tools
       		   ns3-topology-read		  ns3-uan
  			   ns3-virtual-net-device	  ns3-visualizer
-        	   ns3-wimax                  ns3-wifi
-               )
+               ns3-wimax                  ns3-wifi)
 
-file(GLOB simulations "src/*.cc" "src/*.cpp")
+#include_directories("worms")
+#file(GLOB sim "worms/*.cc" "worms/*.h")
+#add_library(sims ${sim})
+
+file(GLOB simulations "worms/ns3*.cc" "worms/ns3*.h")
 list(SORT simulations)
+message(STATUS "Files: ${simulations}")
+add_library(worm ${simulations})
+target_link_libraries(worm NS3_LIBRARIES)
 
-message(STATUS "\n -- SIMULATION: ")
-add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
-foreach(simulation_file ${simulations})
-    get_filename_component(test_base ${simulation_file} NAME_WE)
-    message(STATUS "Adding test ${test_base}")
-    add_executable(${test_base} ${simulation_file})
+#message(STATUS "\n -- SIMULATION: ")
+#add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND})
+#foreach(simulation_file ${simulations})
+#    get_filename_component(test_base ${simulation_file} NAME_WE)
+#    message(STATUS "Adding test ${test_base}")
+#    add_executable(${test_base} ${simulation_file})
 #    target_link_libraries(${test_base} ${PROJECT_NAME})
-    add_test(${test_base} ${EXECUTABLE_OUTPUT_PATH}/${test_base})
-    add_custom_target(${test_base}.run ${test_base} ${ARGN})
-    add_dependencies(check ${test_base})
-endforeach(simulation_file)
+#    add_test(${test_base} ${EXECUTABLE_OUTPUT_PATH}/${test_base})
+#    add_custom_target(${test_base}.run ${test_base} ${ARGN})
+#    add_dependencies(check ${test_base})
+#endforeach(simulation_file)
