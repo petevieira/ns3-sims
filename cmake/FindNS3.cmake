@@ -44,18 +44,19 @@ SET(NS3_VALID_COMPONENTS
 
 # Find the ns3 core library.
 FIND_LIBRARY(NS3_LIBRARIES
-	NAME ns3-core
+	NAME ns3.19-core-debug
 	HINTS
 	${NS3_PATH}
 	$ENV{LD_LIBRARY_PATH}
 	$ENV{NS3_PATH}
+    /usr/local/lib
 	PATH_SUFFIXES lib64 lib ns3/lib
 	PATHS
 	/opt
 	/opt/local
 	/opt/csw
 	/sw
-	/usr
+	/usr/local
 )
 
 # Find the include dir for ns3.
@@ -64,13 +65,14 @@ FIND_PATH(NS3_INCLUDE_DIR
 	HINTS
 	${NS3_PATH}
 	$ENV{NS3_PATH}
+    /usr/local/lib
 	PATH_SUFFIXES include ns3/include
 	PATHS
 	/opt
 	/opt/local
 	/opt/csw
 	/sw
-	/usr
+	/usr/local
 )
 
 MESSAGE(STATUS "Looking for core-module.h")
@@ -105,7 +107,7 @@ ENDIF()
 
 # Library + Include Directories
 IF(NS3_LIBRARIES AND NS3_INCLUDE_DIR)
-	GET_FILENAME_COMPONENT(NS3_LIBRARY_DIR ${NS3_LIBRARIES} PATH)
+ 	GET_FILENAME_COMPONENT(NS3_LIBRARY_DIR ${NS3_LIBRARIES} PATH)
 	MESSAGE(STATUS "NS3 Library directory is ${NS3_LIBRARY_DIR}")
 	STRING(REGEX MATCH "${NS3_LIBRARY_DIR}" in_path "$ENV{LD_LIBRARY_PATH}")
 
@@ -129,20 +131,21 @@ ENDIF()
 
 # Try to find components
 IF(NS3_FOUND)
-	FOREACH(_component ${NS3_CHOSEN_COMPONENTS})
+ 	FOREACH(_component ${NS3_CHOSEN_COMPONENTS})
 		FIND_LIBRARY(NS3_${_component}_LIBRARY
 			NAME ${_component}
 			HINTS
 			${NS3_PATH}
 			$ENV{LD_LIBRARY_PATH}
 			$ENV{NS3_PATH}
+            /usr/local/lib
 			PATH_SUFFIXES lib64 lib ns3/lib
 			PATHS
 			/opt
 			/opt/local
 			/opt/csw
 			/sw
-			/usr
+			/usr/local
 			${NS3_LIBRARY_DIR}
 		)
 		MARK_AS_ADVANCED(NS3_${_component}_LIBRARY)
@@ -150,5 +153,5 @@ IF(NS3_FOUND)
 	ENDFOREACH()
 ENDIF()
 
-FIND_PACKAGE_HANDLE_STANDARD_ARGS(NS3 DEFAULT_MSG NS3_LIBRARIES NS3_INCLUDE_DIR)
-MARK_AS_ADVANCED(NS3_LIBRARIES NS3_INCLUDE_DIR)
+#FIND_PACKAGE_HANDLE_STANDARD_ARGS(NS3 DEFAULT_MSG NS3_LIBRARIES NS3_INCLUDE_DIR)
+#MARK_AS_ADVANCED(NS3_LIBRARIES NS3_INCLUDE_DIR)

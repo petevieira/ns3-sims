@@ -133,12 +133,12 @@ void Worm::Closed(ns3::IpL4Protocol* proto)
 {
 }
 
-//IPAddr_t Worm::GenerateNextIPAddress()
-//{
+IPAddr_t Worm::GenerateNextIPAddress()
+{
   // randomx = randomx * 214013 + 0xffd9613c;
   // I am not following the random number generator of the Slammer worm
-//  IPAddr_t IP;
-//  (std::cout << "Generating next IP address" << std::endl);
+  IPAddr_t IP;
+  std::cout << "Generating next IP address" << std::endl;
 
 //  if (!targetV){
 //    targetV = defaultTV->Copy();
@@ -147,8 +147,8 @@ void Worm::Closed(ns3::IpL4Protocol* proto)
 
 //  IP = baseIP + targetV->Generate();
 
-//  return IP;
-//}
+  return IP;
+}
 
 void Worm::PrepareWormData(char *&buffer)
 {
