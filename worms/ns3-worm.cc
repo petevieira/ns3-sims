@@ -100,9 +100,6 @@ void Worm::Infect()
 // this is a virtual class that is actually overriden in the subclasses
 void Worm::Activate()
 {
-#ifdef HAVE_QT
-  node->Color(Qt::red);
-#endif
 }
 
 // the place where you put your initialization code
@@ -116,32 +113,32 @@ bool Worm::IsInfected()
   return infected;
 }
 
-void Worm::ConnectionComplete(ns3::Ipv4L4Protocol* proto)
+void Worm::ConnectionComplete(ns3::IpL4Protocol* proto)
 {
 }
 
-void Worm::Sent(Count_t c, ns3::Ipv4L4Protocol* proto)
+void Worm::Sent(Count_t c, ns3::IpL4Protocol* proto)
 {
 }
 
-void Worm::ConnectionFailed(ns3::Ipv4L4Protocol* proto, bool)
+void Worm::ConnectionFailed(ns3::IpL4Protocol* proto, bool)
 {
 }
 
-void Worm::CloseRequest(ns3::Ipv4L4Protocol* proto)
+void Worm::CloseRequest(ns3::IpL4Protocol* proto)
 {
 }
 
-void Worm::Closed(ns3::Ipv4L4Protocol* proto)
+void Worm::Closed(ns3::IpL4Protocol* proto)
 {
 }
 
-IPAddr_t Worm::GenerateNextIPAddress()
-{
+//IPAddr_t Worm::GenerateNextIPAddress()
+//{
   // randomx = randomx * 214013 + 0xffd9613c;
   // I am not following the random number generator of the Slammer worm
-  IPAddr_t IP;
-  (std::cout << "Generating next IP address" << std::endl);
+//  IPAddr_t IP;
+//  (std::cout << "Generating next IP address" << std::endl);
 
 //  if (!targetV){
 //    targetV = defaultTV->Copy();
@@ -150,8 +147,8 @@ IPAddr_t Worm::GenerateNextIPAddress()
 
 //  IP = baseIP + targetV->Generate();
 
-  return IP;
-}
+//  return IP;
+//}
 
 void Worm::PrepareWormData(char *&buffer)
 {
@@ -192,7 +189,7 @@ void Worm::SetSignature(const std::string s)
   signature = s;
 }
 
-void Worm::Receive(ns3::Packet *p, ns3::Ipv4L4Protocol *proto, Seq_t)
+void Worm::Receive(ns3::Packet *p, ns3::IpL4Protocol *proto, Seq_t)
 {
   delete p;
 }

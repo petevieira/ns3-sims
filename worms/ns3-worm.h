@@ -96,12 +96,12 @@ protected:
     static std::string signature;    // signature string that is sent in packets
     static char* wormdata;           // the contents of the worm  (this is sent usually sent)
 
-    virtual void Receive(ns3::Packet *, ns3::Ipv4L4Protocol/*L4Protocol*/*, Seq_t); // Data received
-    virtual void Sent(Count_t , ns3::Ipv4L4Protocol*);
-    virtual void ConnectionComplete(ns3::Ipv4L4Protocol*);
-    virtual void ConnectionFailed(ns3::Ipv4L4Protocol*, bool);
-    virtual void CloseRequest(ns3::Ipv4L4Protocol*);
-    virtual void Closed(ns3::Ipv4L4Protocol*);
+    virtual void Receive(ns3::Packet *, ns3::IpL4Protocol/*L4Protocol*/*, Seq_t); // Data received
+    virtual void Sent(Count_t , ns3::IpL4Protocol*);
+    virtual void ConnectionComplete(ns3::IpL4Protocol*);
+    virtual void ConnectionFailed(ns3::IpL4Protocol*, bool);
+    virtual void CloseRequest(ns3::IpL4Protocol*);
+    virtual void Closed(ns3::IpL4Protocol*);
 
 private:
     static Count_t  totalinfected;    // keeps count of total infected instances
